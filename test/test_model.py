@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 Unit tests for the ``maxify.model`` module.
 """
@@ -99,3 +100,6 @@ def test_task(project,
 
     persisted_task = db_session.query(Task).filter_by(id=task.id).one()
     assert persisted_task.data_point_value(story_points_metric) == 15
+=======
+__author__ = 'ross'
+>>>>>>> e1f5387488a50db8fd28b83853bc51d43aa999f8
