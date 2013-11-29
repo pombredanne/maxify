@@ -39,15 +39,15 @@ def test_project():
 def test_project_add_metric():
     p = Project(name="Test Project",
                 desc="Test Description")
-    p.metric(name="Story Points",
+    p.add_metric(name="Story Points",
              units=Int,
              desc="Estimated story points")
 
     with pytest.raises(ConfigError):
-        p.metric(name="Story Points",
+        p.add_metric(name="Story Points",
                  units=Int,
                  desc="Estimated story points")
 
     with pytest.raises(ConfigError):
-        p.metric(name="Bad metric",
+        p.add_metric(name="Bad metric",
                  units=str)

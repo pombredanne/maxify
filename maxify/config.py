@@ -23,7 +23,7 @@ class Project(object):
 
         self.metrics = {}
 
-    def metric(self,
+    def add_metric(self,
                name,
                units,
                desc=None,
@@ -38,6 +38,9 @@ class Project(object):
                                     desc=desc,
                                     range=range,
                                     default_value=default_value)
+
+    def metric(self, name):
+        return self.metrics[name]
 
 
 class Metric(object):
@@ -68,7 +71,7 @@ class Int(Unit):
     pass
 
 
-class Decimal(Unit):
+class Float(Unit):
     pass
 
 
