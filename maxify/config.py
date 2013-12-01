@@ -3,7 +3,7 @@ Module defines DSL/API for configuring a project via a Python.
 """
 
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import inspect
 import re
 
@@ -14,9 +14,9 @@ class ConfigError(BaseException):
     """
     pass
 
-class DataConversionError(BaseException):
-    """Type of error generated due to a bad attempt at a data conversion.
 
+class ParsingError(BaseException):
+    """Type of error generated due to a bad attempt at a data conversion.
     """
     pass
 
@@ -81,17 +81,24 @@ class Unit(object):
 class Int(Unit):
     @staticmethod
     def parse(s):
-        return int(str)
+        try:
+            return int(s)
+        except ValueError:
+            raise ParsingError("Invalid int expression: " + s)
 
 
 class Float(Unit):
     @staticmethod
     def parse(s):
-        return Decimal(s)
+        try:
+            return Decimal(s)
+        except InvalidOperation:
+            raise ParsingError("Invalid float expression: " + s)
 
 
 class Duration(Unit):
     units = (
+        ({"days", "day", "d"}, 86400),
         ({"hours", "hour", "hrs", "hr", "h"}, 3600),
         ({"minutes", "minute", "mins", "min", "m"}, 60),
         ({"seconds", "second", "secs", "sec", "s"}, 1)
@@ -102,34 +109,24 @@ class Duration(Unit):
 
     @classmethod
     def parse(cls, s):
-        # Examples:
-        # hrs, hours, h, hr
-        # min, mins, m, minutes
-        # sec, seconds, s, secs
-        # days, d, day
-
-        # HH:MM:SS
-        # 55:10:00
-        # 3 days, 2 hours, 10 mins
-        # mins 10
-        # 10h
-
         # First, attempt to parse it as a time format
         value = cls._try_parse_time_fmt(s)
         if value:
             return value
 
-        # TODO - Expand this to handle multiple nested expressions, like
-        # 4 hrs, 15 mins
-        match = cls.expr_re.search(s)
-        if match:
+        value = Decimal(0)
+        for match in cls.expr_re.finditer(s):
             num = match.group("num") if match.group("num") \
                 else match.group("num_alt")
             unit = match.group("unit") if match.group("unit") \
                 else match.group("unit_alt")
 
-            _, multiplier = [(u, m) for (u, m) in cls.units if unit in u][0]
-            value = Decimal(num) * multiplier
+            found_units = [(u, m) for (u, m) in cls.units if unit in u]
+            if not len(found_units):
+                raise ParsingError("Invalid duration expression: " +
+                                   match.group())
+            _, multiplier = found_units[0]
+            value += Decimal(num) * multiplier
 
         return value
 
@@ -153,9 +150,7 @@ class Duration(Unit):
             return None
 
 
-class Enum(Unit):
-    pass
-
-
 class String(Unit):
-    pass
+    @staticmethod
+    def parse(s):
+        return s
