@@ -5,11 +5,15 @@ Module defines DSL/API for configuring a project via a Python.
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import inspect
+import imp
 import re
+import os
+
+DEFAULT_PY_CONF = "conf.py"
 
 
 class ConfigError(BaseException):
-    """Type of error generated due to a configuration error, such as defining
+    """Type of error generadted due to a configuration error, such as defining
     invalid units or metrics.
     """
     pass
@@ -22,9 +26,13 @@ class ParsingError(BaseException):
 
 
 class Project(object):
-    def __init__(self, name, desc, **kwargs):
+    projects = {}
+    project_nicknames = {}
+
+    def __init__(self, name, desc=None, nickname=None, **kwargs):
         self.name = name
         self.desc = desc
+        self.nickname = nickname
         # Copy over any additional metadata/properties provided as keyword
         # arg
         for key in kwargs:
@@ -32,11 +40,37 @@ class Project(object):
 
         self.metrics = {}
 
+        self.register_project(self)
+
+    @classmethod
+    def register_project(cls, project):
+        if project.name in cls.projects:
+            print("Warning: project named {0} already registered.".format(
+                project.name
+            ))
+        cls.projects[project.name] = project
+
+        if project.nickname in cls.project_nicknames:
+            print("Warning: project nickname {0} already registered.".format(
+                project.nickname
+            ))
+        cls.project_nicknames[project.nickname] = project
+
+    @classmethod
+    def project(cls, name):
+        if name in cls.projects:
+            return cls.projects[name]
+
+        if name in cls.project_nicknames:
+            return cls.project_nicknames[name]
+
+        return None
+
     def add_metric(self,
                    name,
                    units,
                    desc=None,
-                   range=None,
+                   value_range=None,
                    default_value=None):
         if name in self.metrics:
             raise ConfigError("A metric named {0} already exists for this "
@@ -45,7 +79,7 @@ class Project(object):
         self.metrics[name] = Metric(name,
                                     units,
                                     desc=desc,
-                                    range=range,
+                                    value_range=value_range,
                                     default_value=default_value)
 
     def metric(self, name):
@@ -57,7 +91,7 @@ class Metric(object):
                  name,
                  units,
                  desc=None,
-                 range=None,
+                 value_range=None,
                  default_value=None):
         if not inspect.isclass(units):
             raise ConfigError("Units specified must be a Unit class.")
@@ -68,7 +102,7 @@ class Metric(object):
         self.name = name
         self.units = units
         self.desc = desc
-        self.range = range
+        self.value_range = value_range
         self.default_value = default_value
 
 
@@ -154,3 +188,27 @@ class String(Unit):
     @staticmethod
     def parse(s):
         return s
+
+
+def load_config(path=None):
+    if not path:
+        if os.path.exists(DEFAULT_PY_CONF):
+            path = DEFAULT_PY_CONF
+
+    if not path:
+        raise ConfigError("No configuration file specified or found in "
+                          "current working directory.")
+
+    # Try to load as a python module first
+    if _load_python_config(path):
+        return
+
+    raise ConfigError("No valid config file loaded.")
+
+
+def _load_python_config(path):
+    try:
+        conf_mod = imp.load_source("__prj_config__", path)
+        return conf_mod
+    except BaseException:
+        return None

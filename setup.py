@@ -28,7 +28,9 @@ setup(
     url="http://www.sicessolutions.com",
     install_requires=[
         "numpy",
-        "sqlalchemy"
+        "sqlalchemy",
+        "colorama",
+        "termcolor"
     ],
     tests_requires=[
         "pytest",

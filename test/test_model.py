@@ -34,7 +34,7 @@ def db_session():
 def test_data_point(project,
                     story_points_metric,
                     db_session):
-    point = DataPoint(project.name,
+    point = DataPoint(project.name  ,
                       story_points_metric.name,
                       5)
     db_session.add(point)

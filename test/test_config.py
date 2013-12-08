@@ -11,7 +11,7 @@ def test_metric():
     metric = Metric(name="Test metric",
                     units=Int,
                     desc="Sample desc",
-                    range=["A", "B", "C"],
+                    value_range=["A", "B", "C"],
                     default_value="A")
 
     assert metric
@@ -28,6 +28,7 @@ def test_metric():
 
 def test_project():
     p = Project(name="Test Project",
+                nickname="test",
                 desc="Test Description",
                 prop1="A",
                 prop2="B")
@@ -38,6 +39,7 @@ def test_project():
 
 def test_project_add_metric():
     p = Project(name="Test Project",
+                nickname="test",
                 desc="Test Description")
     p.add_metric(name="Story Points",
                  units=Int,
@@ -51,6 +53,18 @@ def test_project_add_metric():
     with pytest.raises(ConfigError):
         p.add_metric(name="Bad metric",
                      units=str)
+
+
+def test_load_config():
+    test_dir = os.path.dirname(__file__)
+    load_config(os.path.join(test_dir, "conf.py"))
+
+    project = Project.project("NEP")
+    assert project
+
+    sample_metric = project.metric("Research Time")
+    assert sample_metric
+    assert sample_metric.units == Duration
 
 
 def test_int():
