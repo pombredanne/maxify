@@ -5,9 +5,33 @@ from maxify.units import (
     String
 )
 
+#######################################
+# Maxify
+#######################################
+
 maxify_proj = Project(name="Maxify",
                       desc="Maxify",
                       nickname="maxify")
+maxify_proj.add_metric(name="Estimated Story Points",
+                       units=Int,
+                       value_range=[1, 2, 3, 5, 8, 13],
+                       default_value=0)
+maxify_proj.add_metric(name="Final Story Points",
+                       units=Int,
+                       value_range=[1, 2, 3, 5, 8, 13],
+                       default_value=0)
+maxify_proj.add_metric(name="Research",
+                       units=Duration)
+maxify_proj.add_metric(name="Coding",
+                       units=Duration)
+maxify_proj.add_metric(name="Testing",
+                       units=Duration)
+maxify_proj.add_metric(name="Documentation",
+                       units=Duration)
+
+#######################################
+# NEP
+#######################################
 
 nep = Project(name="NEP",
               desc="NEP project",
