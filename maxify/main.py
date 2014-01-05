@@ -22,24 +22,22 @@ class MaxifyCmd(cmd.Cmd):
         self.current_project = None
 
     def emptyline(self):
+        """Handles an empty line (does nothing)."""
         pass
 
     def do_project(self, line):
         """Switch to a project with the provided name."""
-        self.current_project = Project.project(line.strip())
+        line = line.strip()
+        if not line:
+            self._print_projects()
+            return
+
+        self.current_project = Project.project(line)
         if not self.current_project:
             self._error("No project found named '{0}'".format(line))
         else:
             self._success("Switched to project '{0}'".format(
                 self.current_project.name))
-
-    def do_task(self, line):
-        """Create a task or edit an existing task."""
-        pass
-
-    def do_delete(self, line):
-        """Delete the task with the specifed name."""
-        pass
 
     def do_print(self, line):
         """Print information on an existing task or project."""
@@ -61,9 +59,23 @@ class MaxifyCmd(cmd.Cmd):
         # TODO - More content will come later
         print("Project: " + p.name)
 
-    def _print_task(self, line):
+    @classmethod
+    def _print_projects(cls):
+        cls._title("Projects")
+        for project in Project.projects():
+            print("* {0} (nickname: {1}) -> {2}".format(project.name,
+                                                        project.nickname,
+                                                        project.desc))
+        print()
+
+    @staticmethod
+    def _print_task(line):
         print("Not implemented")
 
+    @staticmethod
+    def _title(line):
+        print("\n" + line)
+        print("-" * min(len(line), 80), "\n")
 
     @staticmethod
     def _success(msg):

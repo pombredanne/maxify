@@ -7,6 +7,12 @@ from maxify.config import *
 from maxify.units import *
 
 
+@pytest.fixture(autouse=True)
+def project_reset():
+    Project._projects = {}
+    Project._project_nicknames = {}
+
+
 def test_metric():
     # Test valid Metric
     metric = Metric(name="Test metric",
@@ -54,6 +60,26 @@ def test_project_add_metric():
     with pytest.raises(ConfigError):
         p.add_metric(name="Bad metric",
                      units=str)
+
+
+def test_projects():
+    Project(name="Test Project 10",
+            nickname="test",
+            desc="Test Description")
+
+    Project(name="Test Project 2",
+            nickname="test2",
+            desc="Test 2 Description")
+
+    Project(name="Final Test Project",
+            nickname="final",
+            desc="Final test project")
+
+    projects = Project.projects()
+
+    assert len(projects) == 3
+    assert projects[0].nickname == "final"
+    assert projects[2].nickname == "test"
 
 
 def test_load_config():

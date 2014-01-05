@@ -7,20 +7,21 @@ import imp
 import os
 
 from maxify.units import Unit
+from maxify.utils import sorted_naturally
 
 DEFAULT_PY_CONF = "conf.py"
 
 
 class ConfigError(BaseException):
-    """Type of error generadted due to a configuration error, such as defining
+    """Type of error generated due to a configuration error, such as defining
     invalid units or metrics.
     """
     pass
 
 
 class Project(object):
-    projects = {}
-    project_nicknames = {}
+    _projects = {}
+    _project_nicknames = {}
 
     def __init__(self, name, desc=None, nickname=None, **kwargs):
         self.name = name
@@ -37,27 +38,31 @@ class Project(object):
 
     @classmethod
     def register_project(cls, project):
-        if project.name in cls.projects:
+        if project.name in cls._projects:
             print("Warning: project named {0} already registered.".format(
                 project.name
             ))
-        cls.projects[project.name] = project
+        cls._projects[project.name] = project
 
-        if project.nickname in cls.project_nicknames:
+        if project.nickname in cls._project_nicknames:
             print("Warning: project nickname {0} already registered.".format(
                 project.nickname
             ))
-        cls.project_nicknames[project.nickname] = project
+        cls._project_nicknames[project.nickname] = project
 
     @classmethod
     def project(cls, name):
-        if name in cls.projects:
-            return cls.projects[name]
+        if name in cls._projects:
+            return cls._projects[name]
 
-        if name in cls.project_nicknames:
-            return cls.project_nicknames[name]
+        if name in cls._project_nicknames:
+            return cls._project_nicknames[name]
 
         return None
+
+    @classmethod
+    def projects(cls):
+        return sorted_naturally(cls._projects.values(), key=lambda p: p.name)
 
     def add_metric(self,
                    name,
@@ -77,6 +82,9 @@ class Project(object):
 
     def metric(self, name):
         return self.metrics[name]
+
+    def __repr__(self):
+        return "<Project: {0} ({1})>".format(self.name, self.nickname)
 
 
 class Metric(object):
