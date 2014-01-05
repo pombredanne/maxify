@@ -66,3 +66,14 @@ def test_duration_multiple():
 
     value = Duration.parse("hrs 2, 5 mins")
     assert value == Decimal(7500)
+
+
+def test_determine_unit_and_value():
+    assert determine_unit_and_value("4hrs") == (Duration, 14400)
+    assert determine_unit_and_value("10 mins") == (Duration, 600)
+
+    assert determine_unit_and_value("40.5") == (Float, 40.5)
+
+    assert determine_unit_and_value("40") == (Int, 40)
+
+    assert determine_unit_and_value("40-A") == (String, "40-A")

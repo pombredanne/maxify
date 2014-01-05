@@ -125,12 +125,12 @@ class String(Unit):
 
 
 #: Set of available unit types
-units = {
+units = [
     Duration,
-    Float,
     Int,
+    Float,
     String
-}
+]
 
 
 def determine_unit_and_value(str_value):
@@ -147,8 +147,11 @@ def determine_unit_and_value(str_value):
 
     """
     for unit_type in units:
-        value = unit_type.parse(str_value)
-        if value:
-            return unit_type, value
+        try:
+            value = unit_type.parse(str_value)
+            if value:
+                return unit_type, value
+        except ParsingError:
+            pass
 
     return None, None
