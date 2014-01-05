@@ -1,9 +1,13 @@
-from maxify.config import (
-    Project,
+from maxify.config import Project
+from maxify.units import (
     Int,
     Duration,
     String
 )
+
+maxify_proj = Project(name="Maxify",
+                      desc="Maxify",
+                      nickname="maxify")
 
 nep = Project(name="NEP",
               desc="NEP project",

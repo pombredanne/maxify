@@ -1,12 +1,12 @@
 """
 Unit tests for the ``maxify.model`` module.
 """
-from decimal import Decimal
 
 import pytest
 
 from maxify.config import *
 from maxify.model import *
+from maxify.units import *
 
 
 @pytest.fixture(scope="module")
