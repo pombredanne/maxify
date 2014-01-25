@@ -9,8 +9,7 @@ from maxify.units import *
 
 @pytest.fixture(autouse=True)
 def project_reset():
-    Project._projects = {}
-    Project._project_nicknames = {}
+    Project.reset()
 
 
 def test_metric():
@@ -84,7 +83,7 @@ def test_projects():
 
 def test_load_config():
     test_dir = os.path.dirname(__file__)
-    load_config(os.path.join(test_dir, "conf.py"))
+    load_config(os.path.join(test_dir, "sample_conf.py"))
 
     project = Project.project("NEP")
     assert project

@@ -6,10 +6,14 @@ import inspect
 import imp
 import os
 
+from logbook import Logger
+
 from maxify.units import Unit
 from maxify.utils import sorted_naturally
 
 DEFAULT_PY_CONF = "conf.py"
+
+log = Logger("config")
 
 
 class ConfigError(BaseException):
@@ -63,6 +67,11 @@ class Project(object):
     @classmethod
     def projects(cls):
         return sorted_naturally(cls._projects.values(), key=lambda p: p.name)
+
+    @classmethod
+    def reset(cls):
+        cls._projects = {}
+        cls._project_nicknames = {}
 
     def add_metric(self,
                    name,
@@ -128,4 +137,5 @@ def _load_python_config(path):
         conf_mod = imp.load_source("__prj_config__", path)
         return conf_mod
     except BaseException:
+        log.exception("Failed to load python config: {0}", path)
         return None

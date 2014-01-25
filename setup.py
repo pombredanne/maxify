@@ -30,7 +30,8 @@ setup(
         "numpy",
         "sqlalchemy",
         "colorama",
-        "termcolor"
+        "termcolor",
+        "logbook"
     ],
     tests_requires=[
         "pytest",

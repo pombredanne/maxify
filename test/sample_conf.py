@@ -32,3 +32,9 @@ nep.add_metric(name="Languages Used",
                units=String)
 nep.add_metric(name="Notes",
                units=String)
+
+test_project = Project(name="Test Project",
+                       desc="Test Project",
+                       nickname="test")
+test_project.add_metric(name="Coding Time",
+                        units=Duration)

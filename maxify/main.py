@@ -5,21 +5,32 @@ Main module for maxify command line application.
 """
 
 import cmd
-import sys
-from contextlib import contextmanager
+import re
+import shlex
 
 import colorama
-from termcolor import cprint
+from termcolor import colored
 
 from maxify.config import load_config, Project
 
 
 class MaxifyCmd(cmd.Cmd):
-    def __init__(self):
-        cmd.Cmd.__init__(self)
+    """Command interpreter used for accepting commands from the user to
+    manage a Maxify project.
+
+    """
+
+    # Regex to parse name of task from task command line
+    _task_name_re = re.compile('^(?:"(?P<task0>[\w\s]+)"|'
+                               '\'(?P<task1>[\w\s]+)\'|'
+                               '(?P<task2>\w+)\s*)')
+
+    def __init__(self, stdin=None, stdout=None, use_color=True):
+        cmd.Cmd.__init__(self, stdin=stdin, stdout=stdout)
         self.intro = "Maxify programmer time tracker client"
         self.prompt = "> "
         self.current_project = None
+        self.use_color = use_color
 
     def emptyline(self):
         """Handles an empty line (does nothing)."""
@@ -48,49 +59,67 @@ class MaxifyCmd(cmd.Cmd):
 
     def do_exit(self, line):
         """Exit the application."""
-        sys.exit(0)
+        return True
 
     def do_quit(self, line):
         """Exit the application."""
-        self.do_exit(line)
+        return True
+
+    def do_task(self, line):
+        """Create a task or edit an existing task."""
+        line = line.strip()
+        if not line:
+            self._error("You must specify a task to create or update.\n"
+                        " Usage: task [TASK_NAME]")
+
+        # Extract task name from command line
+        task_name = self._get_task_name(line)
+
+    @classmethod
+    def _get_task_name(cls, line):
+        match = cls._task_name_re.match(line)
+        if not match:
+            return None
+
+        return filter(lambda m: m is not None, match.groups())[0]
 
     def _print_project(self):
         p = self.current_project
         # TODO - More content will come later
-        print("Project: " + p.name)
+        self._print("Project: " + p.name)
 
-    @classmethod
-    def _print_projects(cls):
-        cls._title("Projects")
+    def _print_projects(self):
+        self._title("Projects")
         for project in Project.projects():
-            print("* {0} (nickname: {1}) -> {2}".format(project.name,
-                                                        project.nickname,
-                                                        project.desc))
+            self._print("* {0} (nickname: {1}) -> {2}".format(project.name,
+                                                              project.nickname,
+                                                              project.desc))
+        self._print()
+
+    def _print_task(self, line):
+        self._print("Not implemented")
+
+    def _title(self, line):
+        self._print("\n" + line)
+        self._print("-" * min(len(line), 80) + "\n")
+
+    def _success(self, msg):
+        self._print(msg, 'green')
         print()
 
-    @staticmethod
-    def _print_task(line):
-        print("Not implemented")
-
-    @staticmethod
-    def _title(line):
-        print("\n" + line)
-        print("-" * min(len(line), 80), "\n")
-
-    @staticmethod
-    def _success(msg):
-        cprint(msg, 'green')
+    def _warning(self, msg):
+        self._print("Warning: " + msg, "yellow")
         print()
 
-    @staticmethod
-    def _warning(msg):
-        cprint("Warning: " + msg, "yellow")
+    def _error(self, msg):
+        self._print("Error: " + msg, "red")
         print()
 
-    @staticmethod
-    def _error(msg):
-        cprint("Error: " + msg, "red")
-        print()
+    def _print(self, msg=None, color=None):
+        if msg and color and self.use_color:
+            msg = colored(msg, color)
+
+        print(msg, file=self.stdout)
 
 
 def main():
