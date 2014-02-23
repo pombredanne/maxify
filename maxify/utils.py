@@ -2,6 +2,7 @@
 
 """
 
+from collections import namedtuple
 from functools import partial
 import re
 
@@ -43,3 +44,17 @@ def _alphanum_key(s, prop_getter=None):
     if prop_getter is not None:
         s = prop_getter(s)
     return [_convert_if_numeric(c) for c in _number_re.split(s)]
+
+
+class _Enum(object):
+    """Rudimentatry implementation of functional API for enums in Python 3.4.
+    This is a polyfil for Python 3.0 - 3.3.
+
+    """
+    def __call__(self, name, members):
+        tuple_type = namedtuple(name + "Type", field_names=members)
+
+        member_values = {members[i]: i + 1 for i in range(0, len(members))}
+        return tuple_type(**member_values)
+
+Enum = _Enum()

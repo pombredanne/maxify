@@ -27,6 +27,7 @@ setup(
     author_email="rossbayer@sicessolutions.com",
     url="http://www.sicessolutions.com",
     install_requires=[
+        "pyyaml",
         "numpy",
         "sqlalchemy",
         "colorama",

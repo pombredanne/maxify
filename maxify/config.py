@@ -1,17 +1,23 @@
 """
-Module defines DSL/API for configuring a project via a Python.
+Module defines import utility for importing project configuration from
+a file into the user's data store.
+
 """
 
-import inspect
 import imp
 import os
+from sqlalchemy.orm.exc import NoResultFound
 
+try:
+    from enum import Enum
+except ImportError:
+    from maxify.utils import Enum
+
+import yaml
 from logbook import Logger
 
-from maxify.units import Unit
-from maxify.utils import sorted_naturally
-
-DEFAULT_PY_CONF = "conf.py"
+from maxify.model import Project, Metric
+from maxify import units
 
 log = Logger("config")
 
@@ -23,119 +29,117 @@ class ConfigError(BaseException):
     pass
 
 
-class Project(object):
-    _projects = {}
-    _project_nicknames = {}
-
-    def __init__(self, name, desc=None, nickname=None, **kwargs):
-        self.name = name
-        self.desc = desc
-        self.nickname = nickname
-        # Copy over any additional metadata/properties provided as keyword
-        # arg
-        for key in kwargs:
-            setattr(self, key, kwargs[key])
-
-        self.metrics = {}
-
-        self.register_project(self)
-
-    @classmethod
-    def register_project(cls, project):
-        if project.name in cls._projects:
-            print("Warning: project named {0} already registered.".format(
-                project.name
-            ))
-        cls._projects[project.name] = project
-
-        if project.nickname in cls._project_nicknames:
-            print("Warning: project nickname {0} already registered.".format(
-                project.nickname
-            ))
-        cls._project_nicknames[project.nickname] = project
-
-    @classmethod
-    def project(cls, name):
-        if name in cls._projects:
-            return cls._projects[name]
-
-        if name in cls._project_nicknames:
-            return cls._project_nicknames[name]
-
-        return None
-
-    @classmethod
-    def projects(cls):
-        return sorted_naturally(cls._projects.values(), key=lambda p: p.name)
-
-    @classmethod
-    def reset(cls):
-        cls._projects = {}
-        cls._project_nicknames = {}
-
-    def add_metric(self,
-                   name,
-                   units,
-                   desc=None,
-                   value_range=None,
-                   default_value=None):
-        if name in self.metrics:
-            raise ConfigError("A metric named {0} already exists for this "
-                              "project.")
-
-        self.metrics[name] = Metric(name,
-                                    units,
-                                    desc=desc,
-                                    value_range=value_range,
-                                    default_value=default_value)
-
-    def metric(self, name):
-        return self.metrics[name]
-
-    def __repr__(self):
-        return "<Project: {0} ({1})>".format(self.name, self.nickname)
+class ProjectConflictError(BaseException):
+    pass
 
 
-class Metric(object):
-    def __init__(self,
-                 name,
-                 units,
-                 desc=None,
-                 value_range=None,
-                 default_value=None):
-        if not inspect.isclass(units):
-            raise ConfigError("Units specified must be a Unit class.")
-
-        if not issubclass(units, Unit):
-            raise ConfigError("A Metric's units must be a valid type of Unit.")
-
-        self.name = name
-        self.units = units
-        self.desc = desc
-        self.value_range = value_range
-        self.default_value = default_value
+#: Type of import strategy for configuration importing
+ImportStrategy = Enum("ImportStrategy", ["abort", "merge", "overwrite"])
 
 
-def load_config(path=None):
-    if not path:
-        if os.path.exists(DEFAULT_PY_CONF):
-            path = DEFAULT_PY_CONF
+def import_config(db_session, path, import_strategy=ImportStrategy.abort):
+    """Load project and metric configuration from the file specified and
+    import into user's data file.
 
-    if not path:
-        raise ConfigError("No configuration file specified or found in "
-                          "current working directory.")
+    :param path: `str` containing path to the configuration file.
+    :param import_strategy: :class:`ImportStrategy` enum value indicating the
+        import strategy to use in case a conflict is detected.
 
-    # Try to load as a python module first
-    if _load_python_config(path):
-        return
+    :raise `ConfigError` Raised if invalid configuration file is found.
 
-    raise ConfigError("No valid config file loaded.")
+    """
+    log.info("Attempting configuration import. Path: {} Stategy: {}",
+             path,
+             import_strategy)
+
+    if not path or not os.path.exists(path):
+        raise ConfigError("Path {} is not a valid file".format(path))
+
+    # Load projects from file
+    if path.endswith(".py"):
+        projects = _load_python_config(path)
+    elif path.endswith(".yaml") or path.endswith(".json"):
+        projects = _load_yaml_config(path)
+    else:
+        raise ConfigError("Unsupported filed format: {}.  Value formats are "
+                          "Python file (.py), YAML file (.yaml), or a "
+                          "JSON file (.json).")
+
+    # Check for conflicts
+    project_names = [project.name for project in projects]
+    existing_projects = db_session.query(Project) \
+        .filter(Project.name.in_(project_names)) \
+        .all()
+    conflicts_found = len(existing_projects)
+
+    if conflicts_found and import_strategy == ImportStrategy.abort:
+        existing_project_names = [p.name for p in existing_projects]
+        raise ProjectConflictError("The following projects already exist in "
+                                   "your data file: " +
+                                   ", ".join(existing_project_names))
+
+    if conflicts_found and import_strategy == ImportStrategy.overwrite:
+        for project_to_delete in existing_projects:
+            db_session.delete(project_to_delete)
+        db_session.flush()
+
+    if conflicts_found and import_strategy == ImportStrategy.merge:
+        _do_merge(db_session, projects)
+    else:
+        for project in projects:
+            db_session.add(project)
+
+    db_session.commit()
+
+
+def _do_merge(db_session, new_projects):
+    for project in new_projects:
+        log.debug("Merging project: {}", project.name)
+
+        try:
+            existing_project = db_session.query(Project) \
+                .filter_by(name=project.name) \
+                .one()
+            existing_project.unpack()
+
+            existing_project.desc = project.desc
+            existing_project.nickname = project.nickname
+            for metric in filter(lambda m: not existing_project.metric(m.name),
+                                 project.metrics):
+                copied_metric = Metric(name=metric.name,
+                                       units=metric.units,
+                                       desc=metric.desc,
+                                       value_range=metric.value_range,
+                                       default_value=metric.default_value)
+                existing_project.add_metric(copied_metric)
+        except NoResultFound:
+            # This is a new project, so just add it to the session
+            log.debug("New project found in merge, adding it: {}", project.name)
+            db_session.add(project)
 
 
 def _load_python_config(path):
-    try:
-        conf_mod = imp.load_source("__prj_config__", path)
-        return conf_mod
-    except BaseException:
-        log.exception("Failed to load python config: {0}", path)
-        return None
+    conf_mod = imp.load_source("__prj_config__", path)
+    return conf_mod.configure()
+
+
+def _load_yaml_config(path):
+    with open(path, "r") as f:
+        config = yaml.load(f)
+
+    projects = []
+    for project in config["projects"]:
+        p = Project(name=project["name"],
+                    desc=project.get("desc"),
+                    nickname=project["nickname"])
+        for metric in project["metrics"]:
+            m = Metric(name=metric["name"],
+                       units=getattr(units, metric["units"]),
+                       desc=metric.get("desc"),
+                       value_range=metric.get("value_range"),
+                       default_value=metric.get("default_range"))
+            p.add_metric(m)
+
+        projects.append(p)
+
+    return projects

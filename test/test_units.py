@@ -76,4 +76,16 @@ def test_determine_unit_and_value():
 
     assert determine_unit_and_value("40") == (Int, 40)
 
-    assert determine_unit_and_value("40-A") == (String, "40-A")
+
+def test_to_str():
+    assert Int.to_str(1) == "1"
+    assert Int.to_str(1000) == "1,000"
+    assert Int.to_str(10000) == "10,000"
+    assert Int.to_str(1000000) == "1,000,000"
+
+    assert Float.to_str(1000.0) == "1,000"
+    assert Float.to_str(1500.56) == "1,500.56"
+
+    assert Duration.to_str(86400) == "1 day, 0:00:00"
+    assert Duration.to_str(86500) == "1 day, 0:01:40"
+    assert Duration.to_str(305) == "0:05:05"

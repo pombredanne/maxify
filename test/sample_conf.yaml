@@ -1,0 +1,39 @@
+projects:
+  - name: NEP
+    desc: NEP project
+    nickname: nep
+    metrics:
+      - name: Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Final Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Research Time
+        units: Duration
+      - name: Coding Time
+        units: Duration
+      - name: Test Time
+        units: Duration
+      - name: Debug Time
+        units: Duration
+      - name: Tool Overhead
+        units: Duration
+  - name: Test Project
+    desc: Test Project YAML
+    nickname: test
+    metrics:
+      - name: Debug Time
+        units: Duration
+      - name: Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+  - name: Test Project 2
+    desc: Test Project 2 YAML
+    nickname: test2
+    metrics:
+      - name: Coding Time
+        units: Duration

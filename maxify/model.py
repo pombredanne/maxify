@@ -4,21 +4,25 @@ Maxify to represent projects, tasks, metrics, and data points.
 """
 
 from datetime import datetime
+from decimal import Decimal
+import uuid
 
 from sqlalchemy import (
     create_engine,
     Column,
-    Integer,
     String,
     Numeric,
-    DateTime
+    DateTime,
+    Text
 )
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import ForeignKey
+from sqlalchemy.sql.sqltypes import PickleType
+from sqlalchemy.types import TypeDecorator, CHAR
+from sqlalchemy.dialects.postgresql import UUID
 
-from maxify import config
+from maxify import units as model_units
 
 Base = declarative_base()
 
@@ -31,212 +35,287 @@ class ModelError(BaseException):
     pass
 
 
+class DecimalType(TypeDecorator):
+    impl = Text
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "sqlite":
+            return self.impl
+        else:
+            return Numeric
+
+    def process_bind_param(self, value, dialect):
+        return str(value) if value is not None else None
+
+    def process_result_value(self, value, dialect):
+        if not value:
+            return None
+
+        return Decimal(value)
+
+
+class UnitsType(TypeDecorator):
+    impl = Text
+
+    def process_bind_param(self, value, dialect):
+        return value.__name__
+
+    def process_result_value(self, value, dialect):
+        return getattr(model_units, value)
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+
+    Uses Postgresql's UUID type, otherwise uses
+    CHAR(32), storing as stringified hex values.
+
+    """
+    impl = CHAR
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(UUID())
+        else:
+            return dialect.type_descriptor(CHAR(32))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == "postgresql":
+            return str(value)
+        else:
+            if not isinstance(value, uuid.UUID):
+                return uuid.UUID(value).hex
+            else:
+                return value.hex
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            return uuid.UUID(value)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(GUID, primary_key=True)
+    name = Column(String(256), index=True, unique=True)
+    organization = Column(String(100), index=True, unique=True)
+    desc = Column(String, nullable=True)
+    nickname = Column(String(100), index=True, unique=True)
+
+    metrics = relationship("Metric",
+                           cascade="all, delete, delete-orphan",
+                           backref="project")
+    tasks = relationship("Task",
+                         cascade="all, delete, delete-orphan",
+                         backref="project")
+
+    def __init__(self,
+                 name,
+                 nickname,
+                 organization=None,
+                 desc=None,
+                 metrics=[]):
+        self.id = uuid.uuid4()
+        self.name = name
+        self.nickname = nickname
+        self.organization = organization
+        self.desc = desc
+        self._task_map = {}
+        self._metrics_map = {}
+
+        for metric in metrics:
+            self.add_metric(metric)
+
+    def unpack(self):
+        self._task_map = {t.name: t for t in self.tasks}
+        self._metrics_map = {m.name: m for m in self.metrics}
+        for task in self.tasks:
+            task.unpack()
+
+    def add_metric(self, metric):
+        self.metrics.append(metric)
+        self._metrics_map[metric.name] = metric
+
+    def metric(self, name):
+        return self._metrics_map.get(name)
+
+    def task(self, name):
+        task = self._task_map.get(name)
+        if not task:
+            task = Task(self, name)
+            self.tasks.append(task)
+            self._task_map[name] = task
+
+        return task
+
+
+class Metric(Base):
+    __tablename__ = "metrics"
+
+    id = Column(GUID, primary_key=True)
+    name = Column(String(256), index=True)
+    units = Column(UnitsType)
+    desc = Column(String, nullable=True)
+    value_range = Column(PickleType, nullable=True)
+    default_value_str = Column(String, nullable=True)
+    default_value_num = Column(DecimalType, nullable=True)
+
+    project_id = Column(GUID, ForeignKey("projects.id",
+                                         ondelete="cascade",
+                                         onupdate="cascade"))
+
+    data_points = relationship("DataPoint",
+                               cascade="all, delete, delete-orphan",
+                               backref="metric")
+
+    def __init__(self,
+                 name,
+                 units,
+                 desc=None,
+                 value_range=None,
+                 default_value=None):
+        self.id = uuid.uuid4()
+        self.name = name
+        self.units = units
+        self.desc = desc
+        self.value_range = value_range
+        if isinstance(default_value, str):
+            self.default_value_str = default_value
+        else:
+            self.default_value_num = default_value
+
+    @property
+    def default_value(self):
+        return self.default_value_str if self.default_value_str \
+            else self.default_value_num
+
+
 class Task(Base):
+    """Object representing a single measured task within a project.  Tasks
+    contain 0 or more :class:`DataPoint` objects, one for each metric configured
+    for the project.
+
+    :param project: `str` or :class:`maxify.config.Project` object representing
+        the project that this task belongs to.
+    :param name: `str` containing the name of the task.
+    :param desc: Optional `str` containing description of the task.
+
+    """
     __tablename__ = "tasks"
 
-    id = Column(Integer, primary_key=True)
-    project = Column(String, index=True)
+    id = Column(GUID, primary_key=True)
     name = Column(String(256))
     desc = Column(String, nullable=True)
     created = Column(DateTime)
     last_updated = Column(DateTime)
 
-    data_points = relationship("DataPoint")
+    project_id = Column(GUID, ForeignKey("projects.id",
+                                         ondelete="cascade",
+                                         onupdate="cascade"))
+
+    data_points = relationship("DataPoint",
+                               cascade="all, delete, delete-orphan")
 
     def __init__(self,
                  project,
-                 name,
-                 desc=None):
-        project = _to_name(project, config.Project)
-
-        if not isinstance(project, str):
-            raise ModelError("project argument must be either a string or a "
-                             "Project instance.")
-
+                 name):
+        self.id = uuid.uuid4()
         self.project = project
         self.name = name
-        self.desc = desc
 
         self.created = datetime.now()
         self.last_updated = self.created
 
-        self._metrics = {}
-        self._points_map = None
+        self._points_map = {}
+        self.update_data_points(*project.metrics)
 
-    def _init_points_map(self):
-        if not self._points_map:
-            self._points_map = {p.metric: p for p in self.data_points}
+    def unpack(self):
+        self._points_map = {p.metric.id: p for p in self.data_points}
 
-    def update_data_point(self, metric, value):
-        self._init_points_map()
+    def update_data_points(self, *args):
+        for arg in args:
+            if type(arg) is tuple:
+                metric, value = arg
+            else:
+                metric = arg
+                value = metric.default_value
 
-        if not metric.name in self._metrics:
-            data_point = DataPoint(self.project,
-                                   metric,
-                                   value)
-            self.data_points.append(data_point)
-            self._metrics[metric.name] = data_point
-        else:
-            # TODO - going to probably change this to take a function instead,
-            # like d3.js, to make an abitrary data transformation (so
-            # things like +, -, reset, etc can be externalized.
-            data_point = self._metrics[metric.name]
-            data_point.value += value
+            data_point = self._points_map.get(metric.id)
+            if not data_point:
+                data_point = DataPoint(self.project, metric, self)
+                self.data_points.append(data_point)
+                self._points_map[metric.id] = data_point
 
-        self.last_updated = datetime.now()
+            data_point.value = value
 
     def data_point(self, metric):
-        self._init_points_map()
+        """Return the data point associated with the specified metric.
 
-        return self._metrics.get(metric.name)
+        :param metric: :class:`maxify.config.Metric` associated with the data
+            point to return.
 
-    def data_point_value(self, metric):
-        data_point = self.data_point(metric)
-        if not data_point:
-            return None
+        :return The :class:`DataPoint` object associated with the specified
+            Metric, or None if not found.
 
-        return data_point.value
-
-    def __repr__(self):
-        return "<Task: {0} ({1} Updated: {2}>".format(self.name,
-                                                      self.created,
-                                                      self.last_updated)
+        """
+        return self._points_map.get(metric.id)
 
 
 class DataPoint(Base):
     """Object used to represent a data point for a :class:`maxify.config.Metric`
     associated with a single :class:`Task` object.
 
-    :param project: Either string containing name of the project that the
-        data point belongs to, or a :class:`maxify.config.Project`.
-    :param metric: Either string containing name of the metric that the data
-        point is associated with, or a :class:`maxify.config.Metric`.
-    :param value: Optional numeric or string value to set for the data point.
+    :param project: :class:`maxify.config.Project`
+    :param metric: :class:`maxify.config.Metric`.
+    :param task: The parent :class:`Task` object.
 
     """
 
     __tablename__ = "data_points"
 
-    id = Column(Integer, primary_key=True)
-    project = Column(String, index=True)
-    metric = Column(String, index=True)
+    id = Column(GUID, primary_key=True)
 
-    str_value = Column(String, nullable=True)
-    num_value = Column(Numeric, nullable=True)
+    metric_id = Column(GUID, ForeignKey("metrics.id",
+                                        ondelete="cascade",
+                                        onupdate="cascade"))
+    task_id = Column(GUID, ForeignKey("tasks.id",
+                                      ondelete="cascade",
+                                      onupdate="cascade"))
 
-    task_id = Column(Integer, ForeignKey("tasks.id"))
+    num_value = Column(DecimalType, nullable=True)
 
     def __init__(self,
                  project,
                  metric,
-                 value=None):
-        project = _to_name(project, config.Project)
-        metric = _to_name(metric, config.Metric)
+                 task):
 
-        if not isinstance(project, str):
-            raise ModelError("project argument must be either a string or a "
-                             "Project instance.")
-
-        if not isinstance(metric, str):
-            raise ModelError("metric argument must be either a string or a "
-                             "Metric instance.")
-
-        self.project = project
+        self.id = uuid.uuid4()
+        self.project_id = project.name
         self.metric = metric
-        self.value = value
+        self.metric_id = metric.name
+        self.task_id = task.id
 
     @property
     def value(self):
-        if hasattr(self, "str_value") and self.str_value:
-            return self.str_value
-        else:
-            return self.num_value
+        """The value of the data point.
+        """
+        return self.num_value
+
 
     @value.setter
     def value(self, val):
-        if isinstance(val, str):
-            self.str_value = val
-        else:
-            self.num_value = val
+        val = self.metric.units.parse(val)
 
-    def __repr__(self):
-        return "<DataPoint {0} {1}-{2}>".format(self.value,
-                                                self.project,
-                                                self.metric)
+        if self.metric.value_range and not val in self.metric.value_range:
+            print(self.metric.value_range)
+            raise ModelError("Value {0} not in metric's valid "
+                             "value range".format(val))
 
-
-class ProjectStore(object):
-    """Object that provides access to tasks associated with a project
-    defined by a :class:`maxify.config.Project` configuration object
-    and its associated metrics.
-
-    :param project_config: :class:`maxify.config.Project` config object
-        defining configuration for the project and its metrics.
-    :param db_session: SQLAlchemy session object generated by the
-        `open_user_data` method and used for persisting task data.
-
-    """
-
-    def __init__(self, project_config, db_session):
-        self.project_config = project_config
-        self.db_session = db_session
-
-    @property
-    def project_id(self):
-        """The ID of the project used in persisting tasks.
-
-        """
-        return self.project_config.name
-
-    @property
-    def tasks(self):
-        """List of tasks for this project.
-
-        """
-        return self.db_session.query(Task) \
-            .filter_by(project=self.project_id) \
-            .all()
-
-    def task(self, name):
-        """Get the :class:`Task` with the specified name in this project.
-
-        :return: The :class:`Task` object, or None if not found.
-        """
-        try:
-            return self.db_session.query(Task) \
-                .filter_by(project=self.project_id,
-                           name=name).one()
-        except NoResultFound:
-            return None
-        except MultipleResultsFound:
-            return None
-
-    def update_task(self, name, desc=None, metrics=None):
-        """Update the :class:`Task` with the specified name.  If the task
-        does not exist, it will be created.
-
-        :param name: The name of the task to create/update.
-        :param desc: Optional string description of the task.
-        :param metrics: `List` of `tuples` in the form of `(metric, value)`,
-            where `metric` is a :class:maxify.config.Metric object representing
-            the metric to be updated/set, and `value` being a string or
-            numberic value to assign to the data point associated with
-            the metric.
-
-        :return: The created/updated :class:`Task`.
-
-        """
-        task = self.task(name)
-        if not task:
-            task = Task(self.project_id, name, desc)
-
-        self.db_session.add(task)
-        for (metric, value) in metrics:
-            task.update_data_point(metric, value)
-
-        self.db_session.commit()
-
-        return task
+        self.num_value = val
 
 
 #######################################
@@ -251,14 +330,15 @@ def open_user_data(path, echo=False):
         SQL statements in SQLAlchemy.
     """
     engine = create_engine("sqlite:///" + path, echo=echo)
+
+    def on_connect(conn, record):
+        conn.execute("pragma foreign_keys=ON")
+
+    from sqlalchemy import event
+    event.listen(engine, "connect", on_connect)
+
+    engine.execute("pragma foreign_keys=ON")
     Base.metadata.create_all(engine)
-    Session = sessionmaker()
-    Session.configure(bind=engine)
-    return Session()
-
-
-def _to_name(obj, obj_type):
-    if isinstance(obj, obj_type):
-        return getattr(obj, "name")
-    else:
-        return obj
+    session = sessionmaker()
+    session.configure(bind=engine)
+    return session()

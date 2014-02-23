@@ -2,9 +2,17 @@
 Module defines available units that can be assigned to an individual metric.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import locale
+import os
 import re
+
+# By default, force locale-specific formatting into default locale specified
+# via the LANG environment variable.
+lang = os.environ.get("LANG")
+if lang:
+    locale.setlocale(locale.LC_ALL, lang)
 
 
 class ParsingError(BaseException):
@@ -33,6 +41,26 @@ class Unit(object):
         """
         raise NotImplementedError("Method not implemented on base class")
 
+    @staticmethod
+    def to_str(value):
+        """Converts a persisted, internal representation of a metric's value
+        into a string representation that can be displayed in a user interface
+        or the REPR based on the type of unit.
+
+        :param value: The value to convert.
+
+        :return: `str` with display value of the provided value.
+
+        """
+        return value
+
+    @classmethod
+    def display_name(cls):
+        """The display name of the unit type.
+
+        """
+        return cls.__name__
+
 
 class Int(Unit):
     """An integer unit."""
@@ -44,6 +72,10 @@ class Int(Unit):
         except ValueError:
             raise ParsingError("Invalid int expression: " + s)
 
+    @staticmethod
+    def to_str(value):
+        return format(value, "n")
+
 
 class Float(Unit):
     """A floating-point number unit."""
@@ -54,6 +86,10 @@ class Float(Unit):
             return Decimal(s)
         except InvalidOperation:
             raise ParsingError("Invalid float expression: " + s)
+
+    @staticmethod
+    def to_str(value):
+        return format(value, "n")
 
 
 class Duration(Unit):
@@ -75,6 +111,15 @@ class Duration(Unit):
 
     @classmethod
     def parse(cls, s):
+        if s is None:
+            return None
+
+        if isinstance(s, Decimal):
+            return s
+
+        if isinstance(s, int):
+            return Decimal(s)
+
         # First, attempt to parse it as a time format
         value = cls._try_parse_time_fmt(s)
         if value:
@@ -97,6 +142,11 @@ class Duration(Unit):
         return value
 
     @staticmethod
+    def to_str(value):
+        duration = timedelta(seconds=value)
+        return str(duration)
+
+    @staticmethod
     def _try_parse_time_fmt(s):
         dt = None
         try:
@@ -116,20 +166,11 @@ class Duration(Unit):
             return None
 
 
-class String(Unit):
-    """A string-based unit (for catch-all measures, notes, etc.)"""
-
-    @staticmethod
-    def parse(s):
-        return s
-
-
 #: Set of available unit types
 units = [
     Duration,
     Int,
-    Float,
-    String
+    Float
 ]
 
 

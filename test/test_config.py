@@ -4,90 +4,93 @@ Unit tests for the ``maxify.config`` module.
 import pytest
 
 from maxify.config import *
+from maxify.model import Project
 from maxify.units import *
 
+from logbook import Logger
 
-@pytest.fixture(autouse=True)
-def project_reset():
-    Project.reset()
+log = Logger("test_config")
 
 
-def test_metric():
-    # Test valid Metric
-    metric = Metric(name="Test metric",
-                    units=Int,
-                    desc="Sample desc",
-                    value_range=["A", "B", "C"],
-                    default_value="A")
+@pytest.fixture(scope="module")
+def test_dir():
+    return os.path.dirname(__file__)
 
-    assert metric
 
-    # Test invalid Metric
+def test_load_python_config(test_dir,
+                            db_session):
+    import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
+    _verify_config(db_session)
+
+
+def test_load_python_yaml(test_dir,
+                          db_session):
+    import_config(db_session, os.path.join(test_dir, "sample_conf.yaml"))
+    _verify_config(db_session)
+
+
+def test_load_conflict_abort(test_dir,
+                             db_session):
+    import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
+
+    with pytest.raises(ProjectConflictError):
+        import_config(db_session,
+                      os.path.join(test_dir, "sample_conf.yaml"),
+                      import_strategy=ImportStrategy.abort)
+
+
+def test_load_conflict_overwrite(test_dir,
+                                 db_session):
+    import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
+
+    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project.unpack()
+
+    assert project.desc == "Test Project"
+    assert len(project.metrics) == 1
+
+    import_config(db_session,
+                  os.path.join(test_dir, "sample_conf.yaml"),
+                  import_strategy=ImportStrategy.overwrite)
+
+    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project.unpack()
+
+    assert project.desc == "Test Project YAML"
+    assert len(project.metrics) == 2
+
+    assert db_session.query(Project).count() == 3
+
+
+def test_load_conflict_merge(test_dir,
+                             db_session):
+
+    log.info("Loading sample_conf.py")
+    import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
+
+    import_config(db_session,
+                  os.path.join(test_dir, "sample_conf.yaml"),
+                  import_strategy=ImportStrategy.merge)
+
+    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project.unpack()
+
+    assert len(project.metrics) == 3
+
+
+def test_no_path(db_session):
     with pytest.raises(ConfigError):
-        Metric(name="Test failure metric",
-               units=str)
+        import_config(db_session, None)
 
     with pytest.raises(ConfigError):
-        Metric(name="Test failure metric",
-               units="string")
+        import_config(db_session, "blah")
 
 
-def test_project():
-    p = Project(name="Test Project",
-                nickname="test",
-                desc="Test Description",
-                prop1="A",
-                prop2="B")
+def _verify_config(db_session):
+    project = db_session.query(Project).filter_by(name="NEP").one()
+    project.unpack()
 
-    assert p.prop1 == "A", "Mixed in property not valid"
-    assert p.prop2 == "B", "Mixed in property not valid"
-
-
-def test_project_add_metric():
-    p = Project(name="Test Project",
-                nickname="test",
-                desc="Test Description")
-    p.add_metric(name="Story Points",
-                 units=Int,
-                 desc="Estimated story points")
-
-    with pytest.raises(ConfigError):
-        p.add_metric(name="Story Points",
-                     units=Int,
-                     desc="Estimated story points")
-
-    with pytest.raises(ConfigError):
-        p.add_metric(name="Bad metric",
-                     units=str)
-
-
-def test_projects():
-    Project(name="Test Project 10",
-            nickname="test",
-            desc="Test Description")
-
-    Project(name="Test Project 2",
-            nickname="test2",
-            desc="Test 2 Description")
-
-    Project(name="Final Test Project",
-            nickname="final",
-            desc="Final test project")
-
-    projects = Project.projects()
-
-    assert len(projects) == 3
-    assert projects[0].nickname == "final"
-    assert projects[2].nickname == "test"
-
-
-def test_load_config():
-    test_dir = os.path.dirname(__file__)
-    load_config(os.path.join(test_dir, "sample_conf.py"))
-
-    project = Project.project("NEP")
-    assert project
-
-    sample_metric = project.metric("Research Time")
-    assert sample_metric
-    assert sample_metric.units == Duration
+    assert project.desc == "NEP project"
+    assert len(project.metrics) == 7
+    assert project.metric("Story Points")
+    assert project.metric("Story Points").units == Int

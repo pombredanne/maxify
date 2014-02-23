@@ -1,40 +1,40 @@
-from maxify.config import Project
+from maxify.model import *
 from maxify.units import (
     Int,
-    Duration,
-    String
+    Duration
 )
 
 
-nep = Project(name="NEP",
-              desc="NEP project",
-              nickname="nep")
-
-nep.add_metric(name="Estimated Story Points",
-               units=Int,
-               value_range=[1, 2, 3, 5, 8, 13],
-               default_value=1)
-nep.add_metric(name="Final Story Points",
-               units=Int,
-               value_range=[1, 2, 3, 5, 8, 13],
-               default_value=1)
-nep.add_metric(name="Research Time",
-               units=Duration)
-nep.add_metric(name="Coding Time",
-               units=Duration)
-nep.add_metric(name="Test Time",
-               units=Duration)
-nep.add_metric(name="Debug Time",
-               units=Duration)
-nep.add_metric(name="Tool Overhead",
-               units=Duration),
-nep.add_metric(name="Languages Used",
-               units=String)
-nep.add_metric(name="Notes",
-               units=String)
-
-test_project = Project(name="Test Project",
-                       desc="Test Project",
-                       nickname="test")
-test_project.add_metric(name="Coding Time",
-                        units=Duration)
+def configure():
+    return [
+        Project(name="NEP",
+                desc="NEP project",
+                nickname="nep",
+                metrics=[
+                    Metric(name="Story Points",
+                           units=Int,
+                           value_range=[1, 2, 3, 5, 8, 13],
+                           default_value=1),
+                    Metric(name="Final Story Points",
+                           units=Int,
+                           value_range=[1, 2, 3, 5, 8, 13],
+                           default_value=1),
+                    Metric(name="Research Time",
+                           units=Duration),
+                    Metric(name="Coding Time",
+                           units=Duration),
+                    Metric(name="Test Time",
+                           units=Duration),
+                    Metric(name="Debug Time",
+                           units=Duration),
+                    Metric(name="Tool Overhead",
+                           units=Duration)
+                ]),
+        Project(name="Test Project",
+                desc="Test Project",
+                nickname="test",
+                metrics=[
+                    Metric(name="Coding Time",
+                           units=Duration)
+                ])
+    ]
