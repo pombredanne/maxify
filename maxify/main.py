@@ -11,10 +11,39 @@ import shlex
 import colorama
 from maxify.units import ParsingError
 from termcolor import colored
+import logbook
 
-from maxify.config import import_config
+from maxify.config import (
+    import_config,
+    ImportStrategy,
+    ProjectConflictError,
+    ConfigError
+)
 from maxify.repo import Repository, Projects
+from maxify.log import enable_loggers
 
+help_texts = {
+    "projects": """Prints a list of all available projects.
+
+""",
+    "import": """Imports projects defined in a specified configuration file.
+
+Configuration files can either by a YAML file or a Python module.
+
+Example:
+
+> import projects.yaml
+
+""",
+    "switch": """Switches to the project with the specified name.
+
+Examples:
+
+> switch sample1
+> switch scopetastic/maxify
+
+"""
+}
 
 class MaxifyCmd(cmd.Cmd):
     """Command interpreter used for accepting commands from the user to
@@ -29,6 +58,20 @@ class MaxifyCmd(cmd.Cmd):
         self.current_project = None
         self.use_color = use_color
         self.projects = Projects()
+        self._generate_help_funcs()
+
+    def _generate_help_funcs(self):
+        for command in help_texts:
+            self._generate_help_func(command)
+
+    def _generate_help_func(self, command):
+        func_name = "help_" + command
+
+        def help_func():
+            self._title("Help - " + command)
+            self._print(help_texts[command])
+
+        setattr(self, func_name, help_func)
 
     def cmdloop(self, project_name=None):
         if project_name:
@@ -75,12 +118,13 @@ class MaxifyCmd(cmd.Cmd):
                 self.current_project.name))
 
     def do_projects(self, line):
+        """Lists all projects current defined in the user's data file.
+        """
         projects = self.projects.all()
         self._print("\n")
 
         if not len(projects):
-            self._error("No projects found")
-            self._print("\n")
+            self._warning("No projects found")
             return
 
         orgs = [project.organization for project in projects]
@@ -89,26 +133,66 @@ class MaxifyCmd(cmd.Cmd):
         for org in sorted(orgs):
             if org:
                 self._title(org)
-                prefix = org + Projects.org_separator
-            else:
-                prefix = ""
 
             for project in by_org[org]:
-                project_str = " * {prefix}/{name} - {desc}".format(
-                    prefix=prefix,
-                    name=project.name,
-                    desc=project.desc if project.desc else
-                    "No description provided")
-                self._print(project_str)
+                self._print_project_summary(project)
 
             self._print("\n")
 
-    def do_import(self, line):
-        # First, attempt an import and abort if a conflict happens
-        # try:
-        #     import_config()
-        pass
+    def _print_project_summary(self, project):
+        project_str = " * {name} - {desc}".format(
+            name=Projects.qualified_name(project.name, project.organization),
+            desc=project.desc if project.desc else "No description provided")
+        self._print(project_str)
 
+    def do_import(self, line):
+        """Import projects from a configuration file.
+
+        """
+        # First, attempt an import and abort if a conflict happens
+        file_path = line.strip()
+        try:
+            projects = import_config(file_path, ImportStrategy.abort)
+            conflict = False
+        except ProjectConflictError:
+            conflict = True
+        except ConfigError as e:
+            self._error(str(e))
+            return
+
+        if conflict:
+            self._warning("Conflicts found between current projects and "
+                          "projects defined in '{}'.".format(file_path))
+
+            self._print("\nYou can select one of the following options for "
+                        "continuing with the import:\n"
+                        " - (A)bort -  Stops the import and makes no changes.\n"
+                        " - (M)erge - Merges current projects with those "
+                        "being imported.\n"
+                        " - (R)eplace - Replaces current projects with the "
+                        "ones being imported. Any existing conflicting "
+                        "projects will be deleted along with their data.\n\n")
+
+            response = input("What would you like to do?: ")
+
+            if response == "M":
+                self._print("Merging projects\n")
+                projects = import_config(file_path, ImportStrategy.merge)
+            elif response == "R":
+                self._print("Replacing projects\n")
+                projects = import_config(file_path, ImportStrategy.replace)
+            else:
+                self._print("Import aborted\n")
+                projects = None
+
+        if not projects:
+            return
+
+        self._print("\nThe following projects were imported:")
+        for project in projects:
+            self._print_project_summary(project)
+
+        self._print("\n")
 
     def do_metrics(self, line):
         """Print out metrics available for the current project."""
@@ -250,10 +334,17 @@ def main():
                         help="Path to Maxify data file. By default, this is "
                              "'maxify.db' in the current directory.")
 
+    parser.add_argument("-x",
+                        "--debug",
+                        action="store_true",
+                        help="Print debugging statements during execution.")
+
     args = parser.parse_args()
 
+    if args.debug:
+        enable_loggers()
+
     colorama.init()
-    import_config()
     Repository.init(args.data_file)
 
     interpreter = MaxifyCmd()

@@ -14,11 +14,11 @@ except ImportError:
     from maxify.utils import Enum
 
 import yaml
-from logbook import Logger
 
 from maxify.model import Project, Metric
 from maxify.repo import Projects
 from maxify import units
+from maxify.log import Logger
 
 log = Logger("config")
 
@@ -46,6 +46,8 @@ def import_config(path, import_strategy=ImportStrategy.abort):
     :param import_strategy: :class:`ImportStrategy` enum value indicating the
         import strategy to use in case a conflict is detected.
 
+    :returns: List of projects that were imported
+
     :raise `ConfigError` Raised if invalid configuration file is found.
 
     """
@@ -53,8 +55,11 @@ def import_config(path, import_strategy=ImportStrategy.abort):
              path,
              import_strategy)
 
-    if not path or not os.path.exists(path):
-        raise ConfigError("Path {} is not a valid file".format(path))
+    if not path:
+        raise ConfigError("A path must be provided to import from.")
+
+    if not os.path.exists(path):
+        raise ConfigError("File {} does not exist".format(path))
 
     # Load projects from file
     if path.endswith(".py"):
@@ -67,8 +72,8 @@ def import_config(path, import_strategy=ImportStrategy.abort):
                           "JSON file (.json).")
 
     # Check for conflicts
-    project_names = map(
-        lambda p: Projects.qualified_name(p.name, p.organization), projects)
+    project_names = [Projects.qualified_name(p.name, p.organization)
+                     for p in projects]
     projects_repo = Projects()
 
     with projects_repo.transaction():
@@ -89,6 +94,8 @@ def import_config(path, import_strategy=ImportStrategy.abort):
         else:
             for project in projects:
                 projects_repo.save(project)
+
+    return projects
 
 
 def _do_merge(project_repo, new_projects):
@@ -125,6 +132,7 @@ def _load_yaml_config(path):
     projects = []
     for project in config["projects"]:
         p = Project(name=project["name"],
+                    organization=project.get("organization"),
                     desc=project.get("desc"))
         for metric in project["metrics"]:
             m = Metric(name=metric["name"],

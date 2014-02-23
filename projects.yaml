@@ -53,8 +53,8 @@ projects:
     metrics:
       - name: Task Time
         units: Duration
-  - name: sample2
-    desc: Sample Project 2
+  - name: sample3
+    desc: Sample Project 3
     metrics:
       - name: Task Time
         units: Duration

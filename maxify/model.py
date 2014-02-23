@@ -102,7 +102,7 @@ class Project(Base):
 
     id = Column(GUID, primary_key=True)
     name = Column(String(256), index=True, unique=True)
-    organization = Column(String(100), index=True, unique=True)
+    organization = Column(String(100), index=True)
     desc = Column(String, nullable=True)
 
     metrics = relationship("Metric",
