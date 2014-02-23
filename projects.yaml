@@ -1,0 +1,60 @@
+projects:
+  - name: maxify
+    organization: scopetastic
+    desc: Maxify command-line client
+    metrics:
+      - name: Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Final Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Research Time
+        units: Duration
+      - name: Coding Time
+        units: Duration
+      - name: Test Time
+        units: Duration
+      - name: Debug Time
+        units: Duration
+      - name: Tool Overhead
+        units: Duration
+  - name: maxify-server
+    organization: scopetastic
+    desc: Maxify Server
+    metrics:
+      - name: Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Final Story Points
+        units: Int
+        value_range: [1, 2, 3, 5, 8, 13]
+        default_value: 1
+      - name: Research Time
+        units: Duration
+      - name: Coding Time
+        units: Duration
+      - name: Test Time
+        units: Duration
+      - name: Debug Time
+        units: Duration
+      - name: Tool Overhead
+        units: Duration
+  - name: sample1
+    desc: Sample Project
+    metrics:
+      - name: Task Time
+        units: Duration
+  - name: sample2
+    desc: Sample Project 2
+    metrics:
+      - name: Task Time
+        units: Duration
+  - name: sample2
+    desc: Sample Project 2
+    metrics:
+      - name: Task Time
+        units: Duration

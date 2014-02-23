@@ -13,6 +13,9 @@ Example: Getting a project
 
 """
 
+from contextlib import contextmanager
+
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 from maxify.model import *
 
@@ -39,6 +42,9 @@ class Projects(Repository):
     #: fully-qualified project name.  For instance, `scopetastic/maxify`
     org_separator = "/"
 
+    def __init__(self):
+        self.delay_save = False
+
     def all(self):
         """Get all projects for the data store.
 
@@ -46,6 +52,13 @@ class Projects(Repository):
 
         """
         return self._unpack(self.db_session.query(Project).all())
+
+    def all_named(self, *names):
+        query = self.db_session.query(Project)
+        for organization, name in map(self.split_qualfied_name, names):
+            query.filter_by(name=name, organization=organization)
+
+        return self._unpack(query.all())
 
     def get(self, name, organization=None):
         """Get project from the repository with the corresponding name and
@@ -62,10 +75,8 @@ class Projects(Repository):
         :return: The project, or `None` if not found.
 
         """
-        if self.org_separator in name and organization is None:
-            index = name.find(self.org_separator)
-            organization = name[:index]
-            name = name[index + 1:]
+        if organization is None:
+            organization, name = self.split_qualfied_name(name)
 
         try:
             project = self.db_session.query(Project) \
@@ -75,6 +86,24 @@ class Projects(Repository):
             return project
         except NoResultFound:
             return None
+
+    @classmethod
+    def qualified_name(cls, name, organization):
+        if not organization:
+            return name
+        else:
+            return organization + cls.org_separator + name
+
+    @classmethod
+    def split_qualfied_name(cls, name):
+        if cls.org_separator not in name:
+            return None, name
+
+        index = name.find(cls.org_separator)
+        organization = name[:index]
+        name = name[index + 1:]
+
+        return organization, name
 
     @staticmethod
     def _unpack(projects):
@@ -94,4 +123,25 @@ class Projects(Repository):
             project.organization = project.organization.lower()
         project.name = project.name.lower()
         self.db_session.add(project)
-        self.db_session.commit()
+        if not self.delay_save:
+            self.db_session.commit()
+
+    def delete(self, *projects):
+        for project in projects:
+            self.db_session.delete(project)
+
+        self.db_session.flush()
+        if not self.delay_save:
+            self.db_session.commit()
+
+    @contextmanager
+    def transaction(self):
+        self.delay_save = True
+        yield
+        self.delay_save = False
+
+        try:
+            self.db_session.commit()
+        except SQLAlchemyError:
+            self.db_session.rollback()
+            raise

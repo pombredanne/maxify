@@ -37,6 +37,21 @@ def test_projects_all(project):
     assert project in projects
 
 
+def test_projects_all_named(project, org1_project):
+    names = [Projects.qualified_name(project.name,
+                                     project.organization),
+             Projects.qualified_name(org1_project.name,
+                                     org1_project.organization)]
+
+    projects = Projects().all_named(*names)
+
+    assert len(projects) == 2
+
+    ids = {p.id for p in projects}
+    assert project.id in ids
+    assert org1_project.id in ids
+
+
 def test_projects_get(project, org1_project):
     projects = Projects()
 
@@ -76,3 +91,11 @@ def test_project_unpacked(project, story_points_metric):
     persisted_task = persisted_project.task("Task1")
 
     assert persisted_task.data_point(story_points_metric).value == 5
+
+
+def test_project_delete(project):
+    projects = Projects()
+    projects.delete(project)
+
+    persisted_project = projects.get(project.name, project.organization)
+    assert persisted_project is None

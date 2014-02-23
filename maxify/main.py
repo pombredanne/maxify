@@ -51,6 +51,7 @@ class MaxifyCmd(cmd.Cmd):
         """Handles an empty line (does nothing)."""
         pass
 
+    # TODO: Keep this?
     def default(self, line):
         if self.current_project:
             task = self.current_project.task(line.strip())
@@ -63,20 +64,51 @@ class MaxifyCmd(cmd.Cmd):
 
         cmd.Cmd.default(self, line)
 
-    def do_project(self, line):
+    def do_switch(self, line):
         """Switch to a project with the provided name."""
-        line = line.strip()
-        if not line:
-            self._print_projects()
-            return
-
-        self._set_current_project(line)
+        self._set_current_project(line.strip())
 
         if not self.current_project:
             self._error("No project found named '{0}'".format(line))
         else:
             self._success("Switched to project '{0}'".format(
                 self.current_project.name))
+
+    def do_projects(self, line):
+        projects = self.projects.all()
+        self._print("\n")
+
+        if not len(projects):
+            self._error("No projects found")
+            self._print("\n")
+            return
+
+        orgs = [project.organization for project in projects]
+        by_org = {org: filter(lambda p: p.organization == org, projects) for org in orgs}
+
+        for org in sorted(orgs):
+            if org:
+                self._title(org)
+                prefix = org + Projects.org_separator
+            else:
+                prefix = ""
+
+            for project in by_org[org]:
+                project_str = " * {prefix}/{name} - {desc}".format(
+                    prefix=prefix,
+                    name=project.name,
+                    desc=project.desc if project.desc else
+                    "No description provided")
+                self._print(project_str)
+
+            self._print("\n")
+
+    def do_import(self, line):
+        # First, attempt an import and abort if a conflict happens
+        # try:
+        #     import_config()
+        pass
+
 
     def do_metrics(self, line):
         """Print out metrics available for the current project."""
@@ -166,19 +198,6 @@ class MaxifyCmd(cmd.Cmd):
         metric_name = metric_name.replace("_", " ").title()
         return self.current_project.metric(metric_name)
 
-    def _print_project(self):
-        p = self.current_project
-        # TODO - More content will come later
-        self._print("Project: " + p.name)
-
-    def _print_projects(self):
-        self._title("Projects")
-        for project in Project.projects():
-            self._print("* {0} (nickname: {1}) -> {2}".format(project.name,
-                                                              project.nickname,
-                                                              project.desc))
-        self._print("\n")
-
     def _print_task(self, task):
         output = ["Created: " + str(task.created)]
         output.append("Last Updated: " + str(task.last_updated))
@@ -188,6 +207,10 @@ class MaxifyCmd(cmd.Cmd):
                                                data_point.value))
 
         self._print("\n".join(output) + "\n")
+
+    ########################################
+    # Utility methods
+    ########################################
 
     def _title(self, line):
         self._print("\n" + line)

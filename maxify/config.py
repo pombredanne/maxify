@@ -17,6 +17,7 @@ import yaml
 from logbook import Logger
 
 from maxify.model import Project, Metric
+from maxify.repo import Projects
 from maxify import units
 
 log = Logger("config")
@@ -37,7 +38,7 @@ class ProjectConflictError(BaseException):
 ImportStrategy = Enum("ImportStrategy", ["abort", "merge", "overwrite"])
 
 
-def import_config(db_session, path, import_strategy=ImportStrategy.abort):
+def import_config(path, import_strategy=ImportStrategy.abort):
     """Load project and metric configuration from the file specified and
     import into user's data file.
 
@@ -66,42 +67,37 @@ def import_config(db_session, path, import_strategy=ImportStrategy.abort):
                           "JSON file (.json).")
 
     # Check for conflicts
-    project_names = [project.name for project in projects]
-    existing_projects = db_session.query(Project) \
-        .filter(Project.name.in_(project_names)) \
-        .all()
-    conflicts_found = len(existing_projects)
+    project_names = map(
+        lambda p: Projects.qualified_name(p.name, p.organization), projects)
+    projects_repo = Projects()
 
-    if conflicts_found and import_strategy == ImportStrategy.abort:
-        existing_project_names = [p.name for p in existing_projects]
-        raise ProjectConflictError("The following projects already exist in "
-                                   "your data file: " +
-                                   ", ".join(existing_project_names))
+    with projects_repo.transaction():
+        existing_projects = projects_repo.all_named(*project_names)
+        conflicts_found = len(existing_projects)
 
-    if conflicts_found and import_strategy == ImportStrategy.overwrite:
-        for project_to_delete in existing_projects:
-            db_session.delete(project_to_delete)
-        db_session.flush()
+        if conflicts_found and import_strategy == ImportStrategy.abort:
+            existing_project_names = [p.name for p in existing_projects]
+            raise ProjectConflictError("The following projects already exist in "
+                                       "your data file: " +
+                                       ", ".join(existing_project_names))
 
-    if conflicts_found and import_strategy == ImportStrategy.merge:
-        _do_merge(db_session, projects)
-    else:
-        for project in projects:
-            db_session.add(project)
+        if conflicts_found and import_strategy == ImportStrategy.overwrite:
+            projects_repo.delete(*existing_projects)
 
-    db_session.commit()
+        if conflicts_found and import_strategy == ImportStrategy.merge:
+            _do_merge(projects_repo, projects)
+        else:
+            for project in projects:
+                projects_repo.save(project)
 
 
-def _do_merge(db_session, new_projects):
+def _do_merge(project_repo, new_projects):
     for project in new_projects:
         log.debug("Merging project: {}", project.name)
 
-        try:
-            existing_project = db_session.query(Project) \
-                .filter_by(name=project.name) \
-                .one()
-            existing_project.unpack()
-
+        existing_project = project_repo.get(project.name,
+                                            project.organization)
+        if existing_project:
             existing_project.desc = project.desc
             for metric in filter(lambda m: not existing_project.metric(m.name),
                                  project.metrics):
@@ -111,10 +107,10 @@ def _do_merge(db_session, new_projects):
                                        value_range=metric.value_range,
                                        default_value=metric.default_value)
                 existing_project.add_metric(copied_metric)
-        except NoResultFound:
+        else:
             # This is a new project, so just add it to the session
             log.debug("New project found in merge, adding it: {}", project.name)
-            db_session.add(project)
+            project_repo.save(project)
 
 
 def _load_python_config(path):
