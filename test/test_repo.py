@@ -9,9 +9,9 @@ from maxify.units import *
 
 @pytest.fixture
 def org1_project(db_session):
-    p = Project(name="Org 1 Project",
-                nickname="org1_project",
-                organization="org1")
+    p = Project(name="org1_project",
+                organization="org1",
+                desc="Org1 Project")
 
     p.add_metric(Metric(
         name="Story Points",
@@ -45,6 +45,11 @@ def test_projects_get(project, org1_project):
 
     persisted_project = projects.get(org1_project.name,
                                      org1_project.organization)
+    assert persisted_project.id == org1_project.id
+
+    persisted_project = projects.get(org1_project.organization +
+                                     "/" +
+                                     org1_project.name)
     assert persisted_project.id == org1_project.id
 
     persisted_project = projects.get("fakename")

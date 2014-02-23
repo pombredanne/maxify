@@ -43,7 +43,7 @@ def test_load_conflict_overwrite(test_dir,
                                  db_session):
     import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
 
-    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project = db_session.query(Project).filter_by(name="test").one()
     project.unpack()
 
     assert project.desc == "Test Project"
@@ -53,7 +53,7 @@ def test_load_conflict_overwrite(test_dir,
                   os.path.join(test_dir, "sample_conf.yaml"),
                   import_strategy=ImportStrategy.overwrite)
 
-    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project = db_session.query(Project).filter_by(name="test").one()
     project.unpack()
 
     assert project.desc == "Test Project YAML"
@@ -72,7 +72,7 @@ def test_load_conflict_merge(test_dir,
                   os.path.join(test_dir, "sample_conf.yaml"),
                   import_strategy=ImportStrategy.merge)
 
-    project = db_session.query(Project).filter_by(name="Test Project").one()
+    project = db_session.query(Project).filter_by(name="test").one()
     project.unpack()
 
     assert len(project.metrics) == 3
@@ -87,7 +87,7 @@ def test_no_path(db_session):
 
 
 def _verify_config(db_session):
-    project = db_session.query(Project).filter_by(name="NEP").one()
+    project = db_session.query(Project).filter_by(name="nep").one()
     project.unpack()
 
     assert project.desc == "NEP project"

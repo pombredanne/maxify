@@ -103,7 +103,6 @@ def _do_merge(db_session, new_projects):
             existing_project.unpack()
 
             existing_project.desc = project.desc
-            existing_project.nickname = project.nickname
             for metric in filter(lambda m: not existing_project.metric(m.name),
                                  project.metrics):
                 copied_metric = Metric(name=metric.name,
@@ -130,8 +129,7 @@ def _load_yaml_config(path):
     projects = []
     for project in config["projects"]:
         p = Project(name=project["name"],
-                    desc=project.get("desc"),
-                    nickname=project["nickname"])
+                    desc=project.get("desc"))
         for metric in project["metrics"]:
             m = Metric(name=metric["name"],
                        units=getattr(units, metric["units"]),

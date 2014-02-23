@@ -104,7 +104,6 @@ class Project(Base):
     name = Column(String(256), index=True, unique=True)
     organization = Column(String(100), index=True, unique=True)
     desc = Column(String, nullable=True)
-    nickname = Column(String(100), index=True, unique=True)
 
     metrics = relationship("Metric",
                            cascade="all, delete, delete-orphan",
@@ -115,13 +114,11 @@ class Project(Base):
 
     def __init__(self,
                  name,
-                 nickname,
                  organization=None,
                  desc=None,
                  metrics=[]):
         self.id = uuid.uuid4()
         self.name = name
-        self.nickname = nickname
         self.organization = organization
         self.desc = desc
         self._task_map = {}

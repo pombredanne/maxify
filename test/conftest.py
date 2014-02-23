@@ -32,7 +32,7 @@ def _clear_test_data():
 
 @pytest.fixture
 def project(db_session):
-    p = Project(name="Test Project", nickname="test")
+    p = Project(name="test", desc="Test Project")
 
     p.add_metric(Metric(
         name="Story Points",

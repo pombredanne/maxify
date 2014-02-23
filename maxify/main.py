@@ -12,8 +12,8 @@ import colorama
 from maxify.units import ParsingError
 from termcolor import colored
 
-from maxify.config import import_config, Project
-from maxify.model import open_user_data
+from maxify.config import import_config
+from maxify.repo import Repository, Projects
 
 
 class MaxifyCmd(cmd.Cmd):
@@ -22,13 +22,13 @@ class MaxifyCmd(cmd.Cmd):
 
     """
 
-    def __init__(self, db_session, stdin=None, stdout=None, use_color=True):
+    def __init__(self, stdin=None, stdout=None, use_color=True):
         cmd.Cmd.__init__(self, stdin=stdin, stdout=stdout)
         self.intro = "Maxify programmer time tracker client"
         self.prompt = "> "
         self.current_project = None
         self.use_color = use_color
-        self.db_session = db_session
+        self.projects = Projects()
 
     def cmdloop(self, project_name=None):
         if project_name:
@@ -45,12 +45,7 @@ class MaxifyCmd(cmd.Cmd):
         cmd.Cmd.cmdloop(self)
 
     def _set_current_project(self, project_name):
-        self.current_project = None
-        project = Project.project(project_name)
-        if not project:
-            return
-
-        self.current_project = ProjectStore(project, self.db_session)
+        self.current_project = self.projects.get(project_name)
 
     def emptyline(self):
         """Handles an empty line (does nothing)."""
@@ -223,7 +218,9 @@ def main():
     parser.add_argument("-p",
                         "--project",
                         help="Name of project to start tracking time against "
-                             "once the client starts.")
+                             "once the client starts. For a project belonging "
+                             "to a particular organization, prefix the name "
+                             "with the organization, like: scopetastic/maxify.")
     parser.add_argument("-f",
                         "--data-file",
                         default="maxify.db",
@@ -234,9 +231,9 @@ def main():
 
     colorama.init()
     import_config()
-    db_session = open_user_data(args.data_file)
+    Repository.init(args.data_file)
 
-    interpreter = MaxifyCmd(db_session)
+    interpreter = MaxifyCmd()
     interpreter.cmdloop(args.project)
 
 

@@ -24,18 +24,12 @@ def stdout():
 
 
 @pytest.fixture
-def cmd(db_session, stdin, stdout):
-    c = MaxifyCmd(db_session, stdin=stdin, stdout=stdout, use_color=False)
+def cmd(stdin, stdout):
+    c = MaxifyCmd(stdin=stdin, stdout=stdout, use_color=False)
     c.prompt = ""
     c.use_rawinput = False
     c.completekey = None
     return c
-
-
-@pytest.fixture(autouse=True)
-def project_config(db_session):
-    test_dir = os.path.dirname(__file__)
-    import_config(db_session, os.path.join(test_dir, "sample_conf.py"))
 
 
 def test_exit(stdin, stdout, cmd):

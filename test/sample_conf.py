@@ -7,9 +7,8 @@ from maxify.units import (
 
 def configure():
     return [
-        Project(name="NEP",
+        Project(name="nep",
                 desc="NEP project",
-                nickname="nep",
                 metrics=[
                     Metric(name="Story Points",
                            units=Int,
@@ -30,9 +29,8 @@ def configure():
                     Metric(name="Tool Overhead",
                            units=Duration)
                 ]),
-        Project(name="Test Project",
+        Project(name="test",
                 desc="Test Project",
-                nickname="test",
                 metrics=[
                     Metric(name="Coding Time",
                            units=Duration)
