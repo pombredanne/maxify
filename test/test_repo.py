@@ -7,29 +7,6 @@ import pytest
 from maxify.repo import *
 from maxify.units import *
 
-@pytest.fixture
-def org1_project(db_session):
-    p = Project(name="org1_project",
-                organization="org1",
-                desc="Org1 Project")
-
-    p.add_metric(Metric(
-        name="Story Points",
-        units=Int,
-        value_range=[1, 2, 3, 5, 8],
-        default_value=3
-    ))
-
-    p.add_metric(Metric(
-        name="Compile Time",
-        units=Duration
-    ))
-
-    db_session.add(p)
-    db_session.commit()
-
-    return p
-
 
 def test_projects_all(project):
     projects = Projects().all()
@@ -38,10 +15,7 @@ def test_projects_all(project):
 
 
 def test_projects_all_named(project, org1_project):
-    names = [Projects.qualified_name(project.name,
-                                     project.organization),
-             Projects.qualified_name(org1_project.name,
-                                     org1_project.organization)]
+    names = [project.qualified_name, org1_project.qualified_name]
 
     projects = Projects().all_named(*names)
 
@@ -50,6 +24,24 @@ def test_projects_all_named(project, org1_project):
     ids = {p.id for p in projects}
     assert project.id in ids
     assert org1_project.id in ids
+
+
+def test_projects_matching_name(project, org1_project):
+    partial_name = project.name[:4]
+    projects = Projects()
+    matches = projects.matching_name(partial_name)
+    assert len(matches) == 1
+    assert project.name in matches
+
+    partial_name = org1_project.organization
+
+    matches = projects.matching_name(partial_name)
+    assert len(matches) == 1
+    assert Projects.qualified_name(org1_project.name,
+                                   org1_project.organization) in matches
+
+    matches = projects.matching_name("blah")
+    assert not len(matches)
 
 
 def test_projects_get(project, org1_project):

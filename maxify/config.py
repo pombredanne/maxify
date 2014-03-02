@@ -72,8 +72,7 @@ def import_config(path, import_strategy=ImportStrategy.abort):
                           "JSON file (.json).")
 
     # Check for conflicts
-    project_names = [Projects.qualified_name(p.name, p.organization)
-                     for p in projects]
+    project_names = [p.qualified_name for p in projects]
     projects_repo = Projects()
 
     with projects_repo.transaction():

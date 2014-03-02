@@ -11,7 +11,6 @@ import shlex
 import colorama
 from maxify.units import ParsingError
 from termcolor import colored
-import logbook
 
 from maxify.config import (
     import_config,
@@ -44,6 +43,7 @@ Examples:
 
 """
 }
+
 
 class MaxifyCmd(cmd.Cmd):
     """Command interpreter used for accepting commands from the user to
@@ -107,6 +107,10 @@ class MaxifyCmd(cmd.Cmd):
 
         cmd.Cmd.default(self, line)
 
+    ########################################
+    # Command - switch
+    ########################################
+
     def do_switch(self, line):
         """Switch to a project with the provided name."""
         self._set_current_project(line.strip())
@@ -116,6 +120,24 @@ class MaxifyCmd(cmd.Cmd):
         else:
             self._success("Switched to project '{0}'".format(
                 self.current_project.name))
+
+    def complete_switch(self, text, line, beginx, endidx):
+        start_index = len("switch ")
+        if beginx == start_index:
+            return self.projects.matching_name(text)
+
+        # If beginning index not immediately after command keyword, then
+        # readline found a organization delimiter, so handle it correctly
+        # in search for matches, then strip it out of returned results for
+        # readline tokenized completion logic.
+        organization = line[start_index:beginx]
+        partial_name = organization + text
+        matches = self.projects.matching_name(partial_name)
+        return [m.replace(organization, "") for m in matches]
+
+    ########################################
+    # Command - projects
+    ########################################
 
     def do_projects(self, line):
         """Lists all projects current defined in the user's data file.
@@ -143,7 +165,7 @@ class MaxifyCmd(cmd.Cmd):
 
     def _print_project_summary(self, project):
         project_str = " * {name} - {desc}".format(
-            name=Projects.qualified_name(project.name, project.organization),
+            name=project.qualified_name,
             desc=project.desc if project.desc else "No description provided")
         self._print(project_str)
 

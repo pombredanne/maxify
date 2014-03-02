@@ -21,6 +21,7 @@ from sqlalchemy.schema import ForeignKey
 from sqlalchemy.sql.sqltypes import PickleType
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.pool import StaticPool
 
 from maxify import units as model_units
 
@@ -100,6 +101,10 @@ class GUID(TypeDecorator):
 class Project(Base):
     __tablename__ = "projects"
 
+    #: String used to separate an organization from a name in a
+    #: fully-qualified project name.  For instance, `scopetastic/maxify`
+    org_separator = "/"
+
     id = Column(GUID, primary_key=True)
     name = Column(String(256), index=True, unique=True)
     organization = Column(String(100), index=True)
@@ -148,6 +153,45 @@ class Project(Base):
             self._task_map[name] = task
 
         return task
+
+    @property
+    def qualified_name(self):
+        """The fully-qualified project name including organization.
+
+            >>> project = Project("maxify", organization="scopetastic")
+            >>> print(project.qualified_name)
+            'scopetastic/maxify'
+
+        :return: `str` containing fully-qualified name of the project.
+        """
+        if not self.organization:
+            return self.name
+        else:
+            return self.organization + self.org_separator + self.name
+
+    @classmethod
+    def split_qualfied_name(cls, name):
+        """Splits a fully-qualified project name into a tuple containing the
+        organization and short name.
+
+            >>> project = Project("maxify", organization="scopetastic")
+            >>> Project.split_qualfied_name(project.qualified_name)
+            ('scopetastic', 'maxify')
+
+        :param name: The project name to split.
+
+        :return: `tuple` in the form of (organization, name).  If organization
+        is not specified in the original string, it will be set to ``None``.
+
+        """
+        if cls.org_separator not in name:
+            return None, name
+
+        index = name.find(cls.org_separator)
+        organization = name[:index]
+        name = name[index + 1:]
+
+        return organization, name
 
 
 class Metric(Base):
@@ -319,14 +363,26 @@ class DataPoint(Base):
 # Utility functions
 #######################################
 
-def open_user_data(path, echo=False):
+
+def open_user_data(path, echo=False, use_static_pool=False):
     """Opens the local SQLite data store containing task data for the user.
 
     :param path: The path to the SQLite database/data file.
     :param echo: Optional `bool` that if `True` will turn on echoing of
         SQL statements in SQLAlchemy.
+    :param use_static_pool: Optional argument that indicates to this
+        function to use SQLAlchemy's `StaticPool` pool class and to disable
+        same thread checks for SQLite.  This is used only for unit testing
+        where a second thread might be used for not blocking user I/O
+        but all writes are still performed on the same thread.
     """
-    engine = create_engine("sqlite:///" + path, echo=echo)
+    url = "sqlite:///" + path
+    kwargs = dict(echo=echo)
+    if use_static_pool:
+        kwargs["connect_args"] = dict(check_same_thread=False)
+        kwargs["poolclass"] = StaticPool
+
+    engine = create_engine(url, **kwargs)
 
     def on_connect(conn, record):
         conn.execute("pragma foreign_keys=ON")

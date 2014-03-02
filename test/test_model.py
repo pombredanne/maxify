@@ -14,6 +14,20 @@ def test_open_user_data():
     session.close()
 
 
+def test_project_qualified_name():
+    p = Project(name="maxify", organization="scopetastic")
+    assert p.qualified_name == "scopetastic/maxify"
+
+    p = Project(name="test")
+    assert p.qualified_name == "test"
+
+
+def test_project_split_qualified_name():
+    assert Project.split_qualfied_name("scopetastic/maxify") == \
+           ("scopetastic", "maxify")
+    assert Project.split_qualfied_name("test") == (None, "test")
+
+
 def test_project_task(project, db_session):
     task_name = "Test Task"
     test_desc = "Test Desc"
