@@ -121,23 +121,25 @@ class MaxifyCmd(cmd.Cmd):
         """Lists all projects current defined in the user's data file.
         """
         projects = self.projects.all()
-        self._print("\n")
 
         if not len(projects):
-            self._warning("No projects found")
+            self._print("\nNo projects found\n")
             return
 
-        orgs = [project.organization for project in projects]
-        by_org = {org: filter(lambda p: p.organization == org, projects) for org in orgs}
+        orgs = {project.organization for project in projects}
+        by_org = {org: [p for p in projects if p.organization == org]
+                  for org in orgs}
 
-        for org in sorted(orgs):
+        for org in sorted(orgs, key=lambda o: o if o is not None else ""):
             if org:
                 self._title(org)
+            else:
+                self._title("default")
 
             for project in by_org[org]:
                 self._print_project_summary(project)
 
-            self._print("\n")
+        self._print("")
 
     def _print_project_summary(self, project):
         project_str = " * {name} - {desc}".format(
@@ -175,14 +177,14 @@ class MaxifyCmd(cmd.Cmd):
 
             response = input("What would you like to do?: ")
 
-            if response == "M":
-                self._print("Merging projects\n")
+            if response.upper() == "M":
+                self._print("Merging projects...\n")
                 projects = import_config(file_path, ImportStrategy.merge)
-            elif response == "R":
-                self._print("Replacing projects\n")
-                projects = import_config(file_path, ImportStrategy.replace)
+            elif response.upper() == "R":
+                self._print("Replacing projects...\n")
+                projects = import_config(file_path, ImportStrategy.overwrite)
             else:
-                self._print("Import aborted\n")
+                self._print("Import aborted.\n")
                 projects = None
 
         if not projects:
