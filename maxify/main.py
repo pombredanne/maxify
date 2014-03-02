@@ -79,8 +79,7 @@ class MaxifyCmd(cmd.Cmd):
             if self.current_project:
                 self.intro = self.intro + \
                     "\n\n" + \
-                    "Switched to project '{0}'".format(
-                        self.current_project.name)
+                    "Switched to project '{0}'".format(project_name)
             else:
                 self.intro = self.intro + \
                     "\n\nNo project found named '{0}'".format(project_name)
@@ -106,6 +105,18 @@ class MaxifyCmd(cmd.Cmd):
             return
 
         cmd.Cmd.default(self, line)
+
+    ########################################
+    # Command - quit/exit
+    ########################################
+
+    def do_exit(self, line):
+        """Exit the application."""
+        return True
+
+    def do_quit(self, line):
+        """Exit the application."""
+        return True
 
     ########################################
     # Command - switch
@@ -169,6 +180,10 @@ class MaxifyCmd(cmd.Cmd):
             desc=project.desc if project.desc else "No description provided")
         self._print(project_str)
 
+    ########################################
+    # Command - import
+    ########################################
+
     def do_import(self, line):
         """Import projects from a configuration file.
 
@@ -218,39 +233,38 @@ class MaxifyCmd(cmd.Cmd):
 
         self._print("\n")
 
+    ########################################
+    # Command - metrics
+    ########################################
+
     def do_metrics(self, line):
         """Print out metrics available for the current project."""
         if not self.current_project:
-            self._error("Please select a project first using the 'project' "
+            self._error("Please select a project first using the 'switch' "
                         "command")
             return
 
-        for metric_name in sorted(self.current_project.metrics):
-            m = self.current_project.metrics[metric_name]
-            if m.desc:
-                self._print("* {0} ({1}) -> {2}".format(metric_name,
-                                                        m.units.display_name(),
-                                                        m.desc))
-            else:
-                self._print("* {0} ({1})".format(metric_name,
-                                                 m.units.display_name()))
+        self._title(self.current_project.name + " Metrics:")
+        for metric in sorted(self.current_project.metrics,
+                             key=lambda metric: metric.name):
+            self._print(" * {0} ({1})".format(metric.name,
+                                              metric.units.display_name()))
+
+            if metric.desc:
+                self._print("   - Description: " + metric.desc)
+
+            if metric.value_range:
+                self._print("   - Possible Values: "
+                            + ", ".join(map(str, metric.value_range)))
+
+            if metric.default_value:
+                self._print("   - Default Value: " + str(metric.default_value))
 
         self._print("")
 
-    def do_print(self, line):
-        """Print information on an existing task or project."""
-        if not line:
-            self._print_project()
-        else:
-            self._print_task(line)
-
-    def do_exit(self, line):
-        """Exit the application."""
-        return True
-
-    def do_quit(self, line):
-        """Exit the application."""
-        return True
+    ########################################
+    # Command - task
+    ########################################
 
     def do_task(self, line):
         """Create a task or edit an existing task."""

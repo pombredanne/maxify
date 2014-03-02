@@ -4,10 +4,12 @@ projects:
     desc: Maxify command-line client
     metrics:
       - name: Story Points
+        desc: Estimated story points for task
         units: Int
         value_range: [1, 2, 3, 5, 8, 13]
         default_value: 1
       - name: Final Story Points
+        desc: Actual story points for task
         units: Int
         value_range: [1, 2, 3, 5, 8, 13]
         default_value: 1

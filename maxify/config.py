@@ -105,14 +105,24 @@ def _do_merge(project_repo, new_projects):
                                             project.organization)
         if existing_project:
             existing_project.desc = project.desc
-            for metric in filter(lambda m: not existing_project.metric(m.name),
-                                 project.metrics):
-                copied_metric = Metric(name=metric.name,
-                                       units=metric.units,
-                                       desc=metric.desc,
-                                       value_range=metric.value_range,
-                                       default_value=metric.default_value)
-                existing_project.add_metric(copied_metric)
+            for metric in project.metrics:
+                existing_metric = existing_project.metric(metric.name)
+                if not existing_metric:
+                    copied_metric = Metric(name=metric.name,
+                                           units=metric.units,
+                                           desc=metric.desc,
+                                           value_range=metric.value_range,
+                                           default_value=metric.default_value)
+                    existing_project.add_metric(copied_metric)
+                elif existing_metric.units == metric.units:
+                    existing_metric.name = metric.name
+                    existing_metric.desc = metric.desc
+                    existing_metric.value_range = metric.value_range
+                    existing_metric.default_value = metric.default_value
+                else:
+                    log.warn("Cannot merge metric {} because new unit is "
+                             "different from existing unit type and this "
+                             "would cause data loss.", metric.name)
         else:
             # This is a new project, so just add it to the session
             log.debug("New project found in merge, adding it: {}", project.name)
@@ -138,7 +148,7 @@ def _load_yaml_config(path):
                        units=getattr(units, metric["units"]),
                        desc=metric.get("desc"),
                        value_range=metric.get("value_range"),
-                       default_value=metric.get("default_range"))
+                       default_value=metric.get("default_value"))
             p.add_metric(m)
 
         projects.append(p)

@@ -45,6 +45,7 @@ def project(db_session):
 
     p.add_metric(Metric(
         name="Compile Time",
+        desc="Total amount of time spent compiling app",
         units=Duration
     ))
 

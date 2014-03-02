@@ -202,8 +202,7 @@ class Metric(Base):
     units = Column(UnitsType)
     desc = Column(String, nullable=True)
     value_range = Column(PickleType, nullable=True)
-    default_value_str = Column(String, nullable=True)
-    default_value_num = Column(DecimalType, nullable=True)
+    default_value = Column(DecimalType, nullable=True)
 
     project_id = Column(GUID, ForeignKey("projects.id",
                                          ondelete="cascade",
@@ -224,15 +223,7 @@ class Metric(Base):
         self.units = units
         self.desc = desc
         self.value_range = value_range
-        if isinstance(default_value, str):
-            self.default_value_str = default_value
-        else:
-            self.default_value_num = default_value
-
-    @property
-    def default_value(self):
-        return self.default_value_str if self.default_value_str \
-            else self.default_value_num
+        self.default_value = default_value
 
 
 class Task(Base):
