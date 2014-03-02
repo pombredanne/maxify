@@ -31,15 +31,41 @@ Configuration files can either by a YAML file or a Python module.
 
 Example:
 
-> import projects.yaml
+    > import projects.yaml
 
 """,
     "switch": """Switches to the project with the specified name.
 
 Examples:
 
-> switch sample1
-> switch scopetastic/maxify
+    > switch sample1
+    > switch scopetastic/maxify
+
+""",
+    "metrics": """Displays available metrics for tasks contained in the current\
+ project.
+
+Example:
+
+    > metrics
+
+""",
+    "task": """Create or update a task associated with the current project.
+
+Tasks can be created or updated either in interactive or non-interactive mode.
+
+Examples (non-interactive):
+
+    > task maxify-1 compile_time 2hrs research_time 1hr
+    > task maxify-1 "debug time" 20mins
+
+Example (interactive):
+
+    > task maxify-1
+    Compile Time: 2 hrs
+    Research Time: 1 hr
+    Debug Time: 20 mins
+    ...
 
 """
 }
