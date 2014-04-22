@@ -143,7 +143,7 @@ class Duration(Unit):
 
     @staticmethod
     def to_str(value):
-        duration = timedelta(seconds=value)
+        duration = timedelta(seconds=int(value))
         return str(duration)
 
     @staticmethod

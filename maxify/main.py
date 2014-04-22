@@ -6,6 +6,8 @@ Main module for maxify command line application.
 
 import argparse
 import cmd
+import fnmatch
+from io import StringIO
 import shlex
 
 import colorama
@@ -48,6 +50,26 @@ Examples:
 Example:
 
     > metrics
+
+""",
+    "tasks": """List all tasks stored in the current project, and optionally
+print details about each one.
+
+Usage:
+
+    > tasks [--details] [PATTERN]
+
+The tasks command accepts the following arguments:
+
+--details - Flag used to print out details on each task.
+PATTERN   - Optional name pattern to use for only displaying a subset of tasks.
+            The name pattern is a glob pattern.
+
+Examples:
+
+    > tasks
+    > tasks --details
+    > tasks --details maxify-1*
 
 """,
     "task": """Create or update a task associated with the current project.
@@ -99,16 +121,24 @@ class MaxifyCmd(cmd.Cmd):
 
         setattr(self, func_name, help_func)
 
-    def cmdloop(self, project_name=None):
-        if project_name:
-            self._set_current_project(project_name)
+    def cmdloop(self, args):
+        if args.project:
+            self._set_current_project(args.project)
             if self.current_project:
                 self.intro = self.intro + \
                     "\n\n" + \
-                    "Switched to project '{0}'".format(project_name)
+                    "Switched to project '{0}'".format(args.project)
             else:
                 self.intro = self.intro + \
-                    "\n\nNo project found named '{0}'".format(project_name)
+                    "\n\nNo project found named '{0}'".format(args.project)
+
+        if args.command and len(args.command) > 0:
+            stdin = StringIO()
+            self.stdin = stdin
+            self.prompt = ""
+            self.use_rawinput = False
+            stdin.write(" ".join(args.command) + "\nexit\n")
+            stdin.seek(0)
 
         cmd.Cmd.cmdloop(self)
 
@@ -289,6 +319,39 @@ class MaxifyCmd(cmd.Cmd):
         self._print("")
 
     ########################################
+    # Command - tasks
+    ########################################
+
+    def do_tasks(self, line):
+        """Print out a list of tasks for the current project and accumulated
+         metrics for each task.
+        """
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--details", action="store_true")
+        parser.add_argument("pattern", metavar="PATTERN", nargs="?")
+
+        args = parser.parse_args(line.split())
+
+        details = args.details
+        pattern = args.pattern if args.pattern else "*"
+
+        self._title("Tasks")
+
+        for task in sorted(
+                filter(lambda t: fnmatch.fnmatch(t.name, pattern),
+                       self.current_project.tasks),
+                key=lambda t: t.name):
+            self._info(" * " + task.name, extra_newline=False)
+            if details:
+                for metric in self.current_project.metrics:
+                    data_point = task.data_point(metric)
+                    value = metric.units.to_str(data_point.value) \
+                        if data_point.value else "----"
+                    self._print("    {}: {}".format(metric.name, value))
+
+        self._print("")
+
+    ########################################
     # Command - task
     ########################################
 
@@ -333,7 +396,10 @@ class MaxifyCmd(cmd.Cmd):
 
             metrics.append((metric, value))
 
-        self.current_project.update_task(task_name, metrics=metrics)
+        task = self.current_project.task(task_name)
+        task.update_data_points(*metrics)
+
+        self.projects.save(self.current_project)
 
         return True
 
@@ -364,23 +430,25 @@ class MaxifyCmd(cmd.Cmd):
         self._print("\n" + line)
         self._print("-" * min(len(line), 80) + "\n")
 
-    def _success(self, msg):
-        self._print(msg, 'green')
-        print()
+    def _success(self, msg, extra_newline=True):
+        self._print(msg, 'green', extra_newline)
 
-    def _warning(self, msg):
-        self._print("Warning: " + msg, "yellow")
-        print()
+    def _info(self, msg, extra_newline=True):
+        self._print(msg, 'cyan', extra_newline)
 
-    def _error(self, msg):
-        self._print("Error: " + msg, "red")
-        print()
+    def _warning(self, msg, extra_newline=True):
+        self._print("Warning: " + msg, "yellow", extra_newline)
 
-    def _print(self, msg=None, color=None):
+    def _error(self, msg, extra_newline=True):
+        self._print("Error: " + msg, "red", extra_newline)
+
+    def _print(self, msg=None, color=None, extra_newline=False):
         if msg and color and self.use_color:
             msg = colored(msg, color)
 
         print(msg, file=self.stdout)
+        if extra_newline:
+            print()
 
 
 def main():
@@ -397,11 +465,14 @@ def main():
                         default="maxify.db",
                         help="Path to Maxify data file. By default, this is "
                              "'maxify.db' in the current directory.")
-
     parser.add_argument("-x",
                         "--debug",
                         action="store_true",
                         help="Print debugging statements during execution.")
+    parser.add_argument("command",
+                        nargs=argparse.REMAINDER,
+                        help="Optional command to execute at startup and then "
+                             "exit.")
 
     args = parser.parse_args()
 
@@ -412,7 +483,7 @@ def main():
     Repository.init(args.data_file)
 
     interpreter = MaxifyCmd()
-    interpreter.cmdloop(args.project)
+    interpreter.cmdloop(args)
 
 
 if __name__ == "__main__":
