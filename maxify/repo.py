@@ -18,7 +18,8 @@ from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
-from maxify.model import *
+from maxify.data import open_user_data
+from maxify.projects import Project
 from maxify.log import Logger
 
 

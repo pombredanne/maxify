@@ -1,38 +1,38 @@
-from maxify.model import *
-from maxify.units import (
-    Int,
-    Duration
-)
+from maxify.projects import Project
+from maxify.metrics import Metric, Number, Duration
 
 
 def configure():
-    return [
-        Project(name="nep",
-                desc="NEP project",
-                metrics=[
-                    Metric(name="Story Points",
-                           units=Int,
-                           value_range=[1, 2, 3, 5, 8, 13],
-                           default_value=1),
-                    Metric(name="Final Story Points",
-                           units=Int,
-                           value_range=[1, 2, 3, 5, 8, 13],
-                           default_value=1),
-                    Metric(name="Research Time",
-                           units=Duration),
-                    Metric(name="Coding Time",
-                           units=Duration),
-                    Metric(name="Test Time",
-                           units=Duration),
-                    Metric(name="Debug Time",
-                           units=Duration),
-                    Metric(name="Tool Overhead",
-                           units=Duration)
-                ]),
-        Project(name="test",
-                desc="Test Project",
-                metrics=[
-                    Metric(name="Coding Time",
-                           units=Duration)
-                ])
-    ]
+    project1 = Project(name="nep", desc="NEP project")
+    project1.add_metric(Metric(name="Story Points",
+                               project=project1,
+                               metric_type=Number,
+                               value_range=[1, 2, 3, 5, 8, 13],
+                               default_value=1))
+    project1.add_metric(Metric(name="Final Story Points",
+                               project=project1,
+                               metric_type=Number,
+                               value_range=[1, 2, 3, 5, 8, 13],
+                               default_value=1))
+    project1.add_metric(Metric(name="Research Time",
+                               project=project1,
+                               metric_type=Duration))
+    project1.add_metric(Metric(name="Coding Time",
+                               project=project1,
+                               metric_type=Duration))
+    project1.add_metric(Metric(name="Test Time",
+                               project=project1,
+                               metric_type=Duration))
+    project1.add_metric(Metric(name="Debug Time",
+                               project=project1,
+                               metric_type=Duration))
+    project1.add_metric(Metric(name="Tool Overhead",
+                               project=project1,
+                               metric_type=Duration))
+
+    project2 = Project(name="test", desc="Test Project")
+    project2.add_metric(Metric(name="Coding Time",
+                               project=project2,
+                               metric_type=Duration))
+
+    return [project1, project2]

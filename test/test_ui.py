@@ -7,7 +7,7 @@ from threading import Thread
 
 import pytest
 
-from maxify.main import MaxifyCmd
+from maxify.ui import MaxifyCmd
 
 
 @pytest.fixture
@@ -82,25 +82,3 @@ def test_switch(stdin, stdout, project):
 
     assert "Switched to project 'test'" in output
     assert "Error: No project found named 'blah'" in output
-
-
-def test_metrics(stdin, stdout, project):
-    _run_cmd(stdin,
-             stdout,
-             "switch " + project.name,
-             "metrics",
-             "exit")
-
-    output = stdout.getvalue()
-
-    assert  """
-test Metrics:
--------------
-
- * Compile Time (Duration)
-   - Description: Total amount of time spent compiling app
- * Story Points (Int)
-   - Possible Values: 1, 2, 3, 5, 8
-   - Default Value: 3
-
-""" in output

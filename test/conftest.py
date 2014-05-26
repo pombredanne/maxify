@@ -4,8 +4,9 @@
 
 import pytest
 
-from maxify.model import *
-from maxify.units import *
+from maxify.data import open_user_data
+from maxify.projects import Project
+from maxify.metrics import Metric, Duration, Number
 from maxify.repo import Repository
 
 
@@ -36,18 +37,16 @@ def _clear_test_data():
 def project(db_session):
     p = Project(name="test", desc="Test Project")
 
-    p.add_metric(Metric(
-        name="Story Points",
-        units=Int,
-        value_range=[1, 2, 3, 5, 8],
-        default_value=3
-    ))
+    p.add_metric(Metric(name="Story Points",
+                        project=p,
+                        metric_type=Number,
+                        value_range=[1, 2, 3, 5, 8],
+                        default_value=3))
 
-    p.add_metric(Metric(
-        name="Compile Time",
-        desc="Total amount of time spent compiling app",
-        units=Duration
-    ))
+    p.add_metric(Metric(name="Compile Time",
+                        project=p,
+                        desc="Total amount of time spent compiling app",
+                        metric_type=Duration))
 
     db_session.add(p)
     db_session.commit()
@@ -61,17 +60,15 @@ def org1_project(db_session):
                 organization="org1",
                 desc="Org1 Project")
 
-    p.add_metric(Metric(
-        name="Story Points",
-        units=Int,
-        value_range=[1, 2, 3, 5, 8],
-        default_value=3
-    ))
+    p.add_metric(Metric(name="Story Points",
+                        project=p,
+                        metric_type=Number,
+                        value_range=[1, 2, 3, 5, 8],
+                        default_value=3))
 
-    p.add_metric(Metric(
-        name="Compile Time",
-        units=Duration
-    ))
+    p.add_metric(Metric(name="Compile Time",
+                        project=p,
+                        metric_type=Duration))
 
     db_session.add(p)
     db_session.commit()
@@ -87,5 +84,3 @@ def story_points_metric(project):
 @pytest.fixture
 def compile_time_metric(project):
     return project.metric("Compile Time")
-
-

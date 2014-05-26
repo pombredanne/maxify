@@ -1,8 +1,7 @@
-numpy==1.8.0
-sqlalchemy==0.9.1
-pytest==2.4.2,
+sqlalchemy==0.9.4
+pytest==2.5.2,
 pytest-cov==1.6
-colorama==0.2.4
+colorama==0.3.1
 termcolor==1.1.0
-logbook==0.6.0
-pyyaml==3.10
+logbook==0.7.0
+pyyaml==3.11

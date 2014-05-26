@@ -19,7 +19,7 @@ class PyTest(TestCommand):
 
 setup(
     name="Maxify",
-    version="0.1",
+    version="0.2",
     description="Maxify is a utility for keeping detailed track of "
                 "development time for project tasks in a fast and easy "
                 "manner.",
@@ -28,7 +28,6 @@ setup(
     url="http://www.sicessolutions.com",
     install_requires=[
         "pyyaml",
-        "numpy",
         "sqlalchemy",
         "colorama",
         "termcolor",

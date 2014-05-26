@@ -4,8 +4,7 @@ Unit tests for the ``maxify.config`` module.
 import pytest
 
 from maxify.config import *
-from maxify.model import Project
-from maxify.units import *
+from maxify.metrics import *
 
 from logbook import Logger
 
@@ -80,5 +79,6 @@ def _verify_config():
 
     assert project.desc == "NEP project"
     assert len(project.metrics) == 7
+    print(project._metrics_map)
     assert project.metric("Story Points")
-    assert project.metric("Story Points").units == Int
+    assert project.metric("Story Points").metric_type == Number

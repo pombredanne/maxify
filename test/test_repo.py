@@ -5,7 +5,6 @@
 import pytest
 
 from maxify.repo import *
-from maxify.units import *
 
 
 def test_projects_all(project):
@@ -71,18 +70,6 @@ def test_project_save(project):
 
     persisted_project = projects.get(project.name, project.organization)
     assert persisted_project.desc == project.desc
-
-
-def test_project_unpacked(project, story_points_metric):
-    projects = Projects()
-    task = project.task("Task1")
-    task.update_data_points((story_points_metric, 5))
-    projects.save(project)
-
-    persisted_project = projects.get(project.name, project.organization)
-    persisted_task = persisted_project.task("Task1")
-
-    assert persisted_task.data_point(story_points_metric).value == 5
 
 
 def test_project_delete(project):

@@ -24,7 +24,3 @@ def test_enum():
     assert hasattr(colors, "red")
     assert hasattr(colors, "blue")
     assert hasattr(colors, "green")
-
-    assert colors.red == 1
-    assert colors.green == 2
-    assert colors.blue == 3

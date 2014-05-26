@@ -15,9 +15,9 @@ except ImportError:
 
 import yaml
 
-from maxify.model import Project, Metric
+from maxify.projects import Project
+from maxify.metrics import Metric, metric_types
 from maxify.repo import Projects
-from maxify import units
 from maxify.log import Logger
 
 log = Logger("config")
@@ -109,12 +109,13 @@ def _do_merge(project_repo, new_projects):
                 existing_metric = existing_project.metric(metric.name)
                 if not existing_metric:
                     copied_metric = Metric(name=metric.name,
-                                           units=metric.units,
+                                           project=existing_project,
+                                           metric_type=metric.metric_type,
                                            desc=metric.desc,
                                            value_range=metric.value_range,
                                            default_value=metric.default_value)
                     existing_project.add_metric(copied_metric)
-                elif existing_metric.units == metric.units:
+                elif existing_metric.metric_type == metric.metric_type:
                     existing_metric.name = metric.name
                     existing_metric.desc = metric.desc
                     existing_metric.value_range = metric.value_range
@@ -144,8 +145,15 @@ def _load_yaml_config(path):
                     organization=project.get("organization"),
                     desc=project.get("desc"))
         for metric in project["metrics"]:
+            metric_type = [m for m in metric_types
+                           if m.__name__ == metric["metric_type"]]
+            if not len(metric_type):
+                raise ConfigError("No metric type defined named " +
+                                  metric["metric_type"])
+
             m = Metric(name=metric["name"],
-                       units=getattr(units, metric["units"]),
+                       project=p,
+                       metric_type=metric_type[0],
                        desc=metric.get("desc"),
                        value_range=metric.get("value_range"),
                        default_value=metric.get("default_value"))

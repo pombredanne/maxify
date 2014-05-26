@@ -57,4 +57,7 @@ class _Enum(object):
         member_values = {members[i]: i + 1 for i in range(0, len(members))}
         return tuple_type(**member_values)
 
-Enum = _Enum()
+try:
+    from enum import Enum
+except:
+    Enum = _Enum()
