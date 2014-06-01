@@ -211,6 +211,19 @@ class Number(Base, MetricData):
 
     def __init__(self, metric, task, value):
         MetricData.__init__(self, metric, task)
+        self.update_value(metric, value)
+
+    def update_value(self, metric, value):
+        """Updates the value associated with this datum.
+
+        :param metric: The metric specifying constraints on the value.
+        :param value: The value to set.
+
+        """
+        if metric.value_range is not None and value not in metric.value_range:
+            raise ValueError("{} is not in the valid range of "
+                             "values for metric {}".format(value, metric.name))
+
         self.value = value
 
     @staticmethod

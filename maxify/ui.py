@@ -412,7 +412,12 @@ class MaxifyCmd(cmd.Cmd):
 
         task = self.current_project.task(task_name)
         for metric, value in metrics:
-            task.record(metric, value)
+            try:
+                task.record(metric, value)
+            except ValueError as e:
+                self._error(str(e))
+                self.projects.revert()
+                return False
 
         self.projects.save(self.current_project)
 

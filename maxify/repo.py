@@ -162,6 +162,9 @@ class Projects(Repository):
         if not self.delay_save:
             self.db_session.commit()
 
+    def revert(self):
+        self.db_session.rollback()
+
     def delete(self, *projects):
         for project in projects:
             self.db_session.delete(project)

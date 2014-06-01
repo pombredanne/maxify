@@ -247,7 +247,7 @@ class Task(Base):
         existing = [val for val in self.numeric_values
                     if val.metric_id == metric.id]
         if len(existing):
-            existing[0].value = value
+            existing[0].update_value(metric, value)
         else:
             self.numeric_values.append(Number(metric, self, value))
 
