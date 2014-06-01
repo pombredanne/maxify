@@ -286,9 +286,9 @@ class MaxifyCmd(cmd.Cmd):
 
         self._title(self.current_project.name + " Metrics:")
         for metric in sorted(self.current_project.metrics,
-                             key=lambda metric: metric.name):
+                             key=lambda m: m.name):
             self._print(" * {0} ({1})".format(metric.name,
-                                              metric.units.display_name()))
+                                              metric.metric_type.display_name()))
 
             if metric.desc:
                 self._print("   - Description: " + metric.desc)

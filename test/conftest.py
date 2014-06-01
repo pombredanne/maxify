@@ -37,16 +37,14 @@ def _clear_test_data():
 def project(db_session):
     p = Project(name="test", desc="Test Project")
 
-    p.add_metric(Metric(name="Story Points",
-                        project=p,
-                        metric_type=Number,
-                        value_range=[1, 2, 3, 5, 8],
-                        default_value=3))
+    p.add_metric(name="Story Points",
+                 metric_type=Number,
+                 value_range=[1, 2, 3, 5, 8],
+                 default_value=3)
 
-    p.add_metric(Metric(name="Compile Time",
-                        project=p,
-                        desc="Total amount of time spent compiling app",
-                        metric_type=Duration))
+    p.add_metric(name="Compile Time",
+                 desc="Total amount of time spent compiling app",
+                 metric_type=Duration)
 
     db_session.add(p)
     db_session.commit()
@@ -60,15 +58,13 @@ def org1_project(db_session):
                 organization="org1",
                 desc="Org1 Project")
 
-    p.add_metric(Metric(name="Story Points",
-                        project=p,
-                        metric_type=Number,
-                        value_range=[1, 2, 3, 5, 8],
-                        default_value=3))
+    p.add_metric(name="Story Points",
+                 metric_type=Number,
+                 value_range=[1, 2, 3, 5, 8],
+                 default_value=3)
 
-    p.add_metric(Metric(name="Compile Time",
-                        project=p,
-                        metric_type=Duration))
+    p.add_metric(name="Compile Time",
+                 metric_type=Duration)
 
     db_session.add(p)
     db_session.commit()

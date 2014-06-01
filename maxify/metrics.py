@@ -52,6 +52,24 @@ class MetricType(TypeDecorator):
 
 class Metric(Base):
     """Class representing an individual metric for a project.
+
+    :param name: The name of the metric.  This will be unique to the
+            project.
+    :param metric_type: :class:`maxify.metrics.MetricData` subclass
+        type representing the type of metric being added (for instance,
+        a :class:`maxify.metrics.Duration`).
+    :param project: Object representing the project that this metric belongs
+        to, usually a :class:`maxify.projects.Project` object.
+    :param desc: Optional :class:`string` containing a description of the
+        metric.
+    :param value_range: Optional :class:`list` or :class:`set` defining a
+        set of valid values that can be assigned to this metric.  For
+        instance, if you wanted to limit the metric to only
+        ``[1, 2, 3, 4, 5]``.
+    :param default_value: Optional default value for the metric.  If the
+        user does not provide a value, this value will be assigned to
+        the metric instead.
+
     """
 
     __tablename__ = "metrics"
@@ -138,6 +156,12 @@ class MetricData(object):
         """Column providing the time the entry was created for the data value.
         """
         return Column(DateTime)
+
+    @classmethod
+    def display_name(cls):
+        """Returns the name of the metric data type.
+        """
+        return cls.__name__
 
 
 class Number(Base, MetricData):

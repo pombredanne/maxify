@@ -16,11 +16,3 @@ def test_sorted_naturally():
         ("A 10", 10),
         ("b", None)
     ]
-
-
-def test_enum():
-    colors = Enum("Colors", ["red", "green", "blue"])
-
-    assert hasattr(colors, "red")
-    assert hasattr(colors, "blue")
-    assert hasattr(colors, "green")

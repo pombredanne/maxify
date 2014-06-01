@@ -79,6 +79,5 @@ def _verify_config():
 
     assert project.desc == "NEP project"
     assert len(project.metrics) == 7
-    print(project._metrics_map)
     assert project.metric("Story Points")
     assert project.metric("Story Points").metric_type == Number

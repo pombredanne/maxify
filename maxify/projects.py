@@ -52,8 +52,7 @@ class Project(Base):
     def __init__(self,
                  name,
                  organization=None,
-                 desc=None,
-                 metrics=[]):
+                 desc=None):
         self.id = uuid.uuid4()
         self.name = name
         self.organization = organization
@@ -61,21 +60,69 @@ class Project(Base):
         self._task_map = {}
         self._metrics_map = {}
 
-        for metric in metrics:
-            self.add_metric(metric)
-
     def unpack(self):
         self._task_map = {t.name: t for t in self.tasks}
         self._metrics_map = {m.name: m for m in self.metrics}
 
-    def add_metric(self, metric):
+    def add_metric(self,
+                   name,
+                   metric_type,
+                   desc=None,
+                   value_range=None,
+                   default_value=None):
+        """Adds a new metric to the current project with the specified
+        properties.
+
+        :param name: The name of the metric.  This will be unique to the
+            project.
+        :param metric_type: :class:`maxify.metrics.MetricData` subclass
+            type representing the type of metric being added (for instance,
+            a :class:`maxify.metrics.Duration`).
+        :param desc: Optional :class:`string` containing a description of the
+            metric.
+        :param value_range: Optional :class:`list` or :class:`set` defining a
+            set of valid values that can be assigned to this metric.  For
+            instance, if you wanted to limit the metric to only
+            ``[1, 2, 3, 4, 5]``.
+        :param default_value: Optional default value for the metric.  If the
+            user does not provide a value, this value will be assigned to
+            the metric instead.
+
+        :return: The current project.
+
+        """
+        metric = Metric(name,
+                        metric_type,
+                        project=self,
+                        desc=desc,
+                        value_range=value_range,
+                        default_value=default_value)
         self.metrics.append(metric)
         self._metrics_map[metric.name] = metric
+        return self
 
     def metric(self, name):
+        """Returns the metric with the specified name.
+
+        :param name: The name of the metric
+
+        :return: The :class:`maxify.metrics.Metric` with the specified name
+            in this project, or ``None`` if it does not exist.
+
+        """
         return self._metrics_map.get(name)
 
     def task(self, name):
+        """Returns the task in the current project with the specified name.  If
+        the task does not exist, it will be created.
+
+        :param name: The unique name of the task.
+
+        :return: The :class:`maxify.projects.Task` with the specified name
+            in this project.  If the task does not exist, it will be
+            created.
+
+        """
         task = self._task_map.get(name)
         if not task:
             task = Task(self, name)

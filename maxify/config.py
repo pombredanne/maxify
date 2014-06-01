@@ -4,14 +4,10 @@ a file into the user's data store.
 
 """
 
-import imp
 import os
-from sqlalchemy.orm.exc import NoResultFound
+import runpy
 
-try:
-    from enum import Enum
-except ImportError:
-    from maxify.utils import Enum
+from enum import Enum, unique
 
 import yaml
 
@@ -22,6 +18,9 @@ from maxify.log import Logger
 
 log = Logger("config")
 
+#: Constant defining name of key in config defining projects to import.
+PROJECTS_KEY = "projects"
+
 
 class ConfigError(BaseException):
     """Type of error generated due to a configuration error, such as defining
@@ -31,11 +30,27 @@ class ConfigError(BaseException):
 
 
 class ProjectConflictError(BaseException):
+    """Type of error generated due to a conflict between an existing project
+    and one trying to be imported.
+    """
     pass
 
 
-#: Type of import strategy for configuration importing
-ImportStrategy = Enum("ImportStrategy", ["abort", "merge", "overwrite"])
+@unique
+class ImportStrategy(Enum):
+    """Enumeration of different strategies that can be used to import projects
+    into the current data store.
+    """
+    #: Strategy that aborts the operation when a conflict is detected.
+    abort = "abort"
+
+    #: Strategy that will attempt to merge conflict projects into a single
+    #: project.
+    merge = "merge"
+
+    #: Strategy that will overwrite one project with another if a duplicate
+    #: is found in a configuration that is being imported.
+    overwrite = "overwrite"
 
 
 def import_config(path, import_strategy=ImportStrategy.abort):
@@ -71,6 +86,10 @@ def import_config(path, import_strategy=ImportStrategy.abort):
                           "Python file (.py), YAML file (.yaml), or a "
                           "JSON file (.json).")
 
+    # For python config, allow a single return value instead of a collection.
+    if isinstance(projects, Project):
+        projects = [projects]
+
     # Check for conflicts
     project_names = [p.qualified_name for p in projects]
     projects_repo = Projects()
@@ -101,20 +120,18 @@ def _do_merge(project_repo, new_projects):
     for project in new_projects:
         log.debug("Merging project: {}", project.name)
 
-        existing_project = project_repo.get(project.name,
-                                            project.organization)
-        if existing_project:
-            existing_project.desc = project.desc
+        existing_prj = project_repo.get(project.name,
+                                        project.organization)
+        if existing_prj:
+            existing_prj.desc = project.desc
             for metric in project.metrics:
-                existing_metric = existing_project.metric(metric.name)
+                existing_metric = existing_prj.metric(metric.name)
                 if not existing_metric:
-                    copied_metric = Metric(name=metric.name,
-                                           project=existing_project,
-                                           metric_type=metric.metric_type,
-                                           desc=metric.desc,
-                                           value_range=metric.value_range,
-                                           default_value=metric.default_value)
-                    existing_project.add_metric(copied_metric)
+                    existing_prj.add_metric(name=metric.name,
+                                            metric_type=metric.metric_type,
+                                            desc=metric.desc,
+                                            value_range=metric.value_range,
+                                            default_value=metric.default_value)
                 elif existing_metric.metric_type == metric.metric_type:
                     existing_metric.name = metric.name
                     existing_metric.desc = metric.desc
@@ -131,8 +148,13 @@ def _do_merge(project_repo, new_projects):
 
 
 def _load_python_config(path):
-    conf_mod = imp.load_source("__prj_config__", path)
-    return conf_mod.configure()
+    config_globals = runpy.run_path(path)
+    if not PROJECTS_KEY in config_globals:
+        raise ConfigError("{} must contain a `projects` variable defining "
+                          "either a list of Projects or a single Project."
+                          .format(path))
+
+    return config_globals[PROJECTS_KEY]
 
 
 def _load_yaml_config(path):
@@ -140,7 +162,7 @@ def _load_yaml_config(path):
         config = yaml.load(f)
 
     projects = []
-    for project in config["projects"]:
+    for project in config[PROJECTS_KEY]:
         p = Project(name=project["name"],
                     organization=project.get("organization"),
                     desc=project.get("desc"))
@@ -151,13 +173,11 @@ def _load_yaml_config(path):
                 raise ConfigError("No metric type defined named " +
                                   metric["metric_type"])
 
-            m = Metric(name=metric["name"],
-                       project=p,
-                       metric_type=metric_type[0],
-                       desc=metric.get("desc"),
-                       value_range=metric.get("value_range"),
-                       default_value=metric.get("default_value"))
-            p.add_metric(m)
+            p.add_metric(name=metric["name"],
+                         metric_type=metric_type[0],
+                         desc=metric.get("desc"),
+                         value_range=metric.get("value_range"),
+                         default_value=metric.get("default_value"))
 
         projects.append(p)
 
