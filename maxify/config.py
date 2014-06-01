@@ -12,7 +12,7 @@ from enum import Enum, unique
 import yaml
 
 from maxify.projects import Project
-from maxify.metrics import Metric, metric_types
+from maxify.metrics import metric_types
 from maxify.repo import Projects
 from maxify.log import Logger
 

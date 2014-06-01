@@ -3,7 +3,11 @@ Module defining metrics for a project and the different types of data that
 can be stored in a metric.
 """
 
-from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from datetime import datetime, timedelta
+import locale
+import os
+import re
 import uuid
 
 from sqlalchemy import (
@@ -26,6 +30,12 @@ from maxify.data import (
     IntervalType
 )
 
+# By default, force locale-specific formatting into default locale specified
+# via the LANG environment variable.
+lang = os.environ.get("LANG")
+if lang:
+    locale.setlocale(locale.LC_ALL, lang)
+
 #######################################
 # Type decorators
 #######################################
@@ -44,6 +54,16 @@ class MetricType(TypeDecorator):
     def process_result_value(self, value, dialect):
         for metric_type in filter(lambda m: m.__name__ == value, metric_types):
             return metric_type
+
+#######################################
+# Errors
+#######################################
+
+
+class ParsingError(BaseException):
+    """Type of error generated due to a bad attempt at a data conversion.
+    """
+    pass
 
 #######################################
 # Metrics
@@ -210,6 +230,34 @@ class Number(Base, MetricData):
         return session.query(Number.value)\
             .filter_by(metric_id=metric.id, task_id=task.id).scalar()
 
+    @staticmethod
+    def parse(value):
+        """Parses the specified string into a value that can be stored by
+        this metric data type.
+
+        :param value: :class:`str` containing a valid value to parse.
+
+        :return: The parsed value.
+
+        :raises maxify.metrics.ParsingError
+
+        """
+        try:
+            return Decimal(value)
+        except InvalidOperation:
+            raise ParsingError("Invalid numeric expression: " + value)
+
+    @staticmethod
+    def to_str(value):
+        """Utility method for converting a number into a string value for
+        display purposes.
+
+        :param value: The number value to convert to a string value.
+
+        :return: The string value of the datum.
+        """
+        return format(value, "n")
+
 
 class Duration(Base, MetricData):
     """Histogram-style metric data type that represents a time duration or
@@ -243,7 +291,20 @@ class Duration(Base, MetricData):
         dict()
     )
 
-    def __init__(self, metric, task,  value):
+    # Collection of strings representing unit of duration mapped to a name of
+    # a keyword argument to the datetime.timedelta initializer.
+    _durations = (
+        ({"days", "day", "d"}, "days"),
+        ({"hours", "hour", "hrs", "hr", "h"}, "hours"),
+        ({"minutes", "minute", "mins", "min", "m"}, "minutes"),
+        ({"seconds", "second", "secs", "sec", "s"}, "seconds")
+    )
+
+    # Regex used to parse a duration string.  Values are in the form of:
+    # [QUANTITY] [UNIT], where [UNIT] is minutes, hours, etc.
+    _expr_re = re.compile("(?P<num>\d+\.?\d*)\s*(?P<unit>[A-Za-z]+)")
+
+    def __init__(self, metric, task, value):
         MetricData.__init__(self, metric, task)
         self.id = uuid.uuid4()
         self.value = value
@@ -265,6 +326,71 @@ class Duration(Base, MetricData):
         """
         return session.query(func.sum(Duration.value).label("total"))\
             .filter_by(metric_id=metric.id, task_id=task.id).scalar()
+
+    @classmethod
+    def parse(cls, value):
+        """Parses the specified string into a value that can be stored by
+        this metric data type.
+
+        :param value: :class:`str` containing a valid value to parse.
+
+        :return: The parsed value as a :class:`datetime.timedelta`.
+
+        :raises maxify.metrics.ParsingError
+
+        """
+        if value is None:
+            return None
+
+        # First, attempt to parse it as a time format
+        parsed_value = cls._try_parse_time_fmt(value)
+        if parsed_value:
+            return parsed_value
+
+        value_map = dict(days=0, hours=0, minutes=0, seconds=0)
+        for match in cls._expr_re.finditer(value):
+            num = match.group("num")
+            unit = match.group("unit")
+
+            found_units = [(u, m) for (u, m) in cls._durations if unit in u]
+            if not len(found_units):
+                raise ParsingError("Invalid duration expression: " +
+                                   match.group())
+
+            _, prop_name = found_units[0]
+            value_map[prop_name] += float(num)
+
+        return timedelta(**value_map)
+
+    @staticmethod
+    def to_str(value):
+        """Utility method for converting a duration value
+        (a :class:`datetime.timedelta`) into a string for display purposes.
+
+        :param value: The timedelta to convert to a string value.
+
+        :return: The string value of the datum.
+        """
+        return str(value)
+
+    @staticmethod
+    def _try_parse_time_fmt(s):
+        dt = None
+        try:
+            dt = datetime.strptime(s, "%H:%M:%S")
+        except ValueError:
+            pass
+
+        try:
+            dt = datetime.strptime(s, "%H:%M")
+        except ValueError:
+            pass
+
+        if not dt:
+            return None
+
+        t = dt.time()
+        return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
 
 
 #: List of different types of metrics that can be created/stored in a project.

@@ -2,13 +2,12 @@
 Module defining user interface for the application.
 """
 
-import argparse
 import cmd
 import fnmatch
 from io import StringIO
 import shlex
 
-from maxify.units import ParsingError
+from maxify.metrics import ParsingError
 from termcolor import colored
 
 from maxify.config import (
@@ -18,6 +17,7 @@ from maxify.config import (
     ConfigError
 )
 from maxify.repo import Projects
+from maxify.utils import ArgumentParser
 
 
 help_texts = {
@@ -310,11 +310,16 @@ class MaxifyCmd(cmd.Cmd):
         """Print out a list of tasks for the current project and accumulated
          metrics for each task.
         """
-        parser = argparse.ArgumentParser()
+        parser = ArgumentParser(stdout=self.stdout,
+                                prog="tasks",
+                                add_help=False)
         parser.add_argument("--details", action="store_true")
         parser.add_argument("pattern", metavar="PATTERN", nargs="?")
 
         args = parser.parse_args(line.split())
+        if not args:
+            self._error("Invalid arguments")
+            return
 
         details = args.details
         pattern = args.pattern if args.pattern else "*"
@@ -336,9 +341,9 @@ class MaxifyCmd(cmd.Cmd):
             if details:
                 self._print(" " + "-" * 51)
                 for metric in self.current_project.metrics:
-                    data_point = task.data_point(metric)
-                    value = metric.units.to_str(data_point.value) \
-                        if data_point.value else "----"
+                    metric_value = task.value(metric)
+                    value = metric.metric_type.to_str(metric_value) \
+                        if metric_value else "----"
                     self._print(detail_fmt.format(metric.name, value))
                 self._print()
                 self._print(detail_fmt.format("Created", task.created))
@@ -373,6 +378,7 @@ class MaxifyCmd(cmd.Cmd):
             self._success("Task updated")
 
     def _update_task_interactive(self, task_name):
+        self._error("Interactive task input is not implemented yet!")
         return False
 
     def _update_task(self, task_name, args):
@@ -391,13 +397,13 @@ class MaxifyCmd(cmd.Cmd):
             value_str = args[val_idx]
 
             # Determine metric
-            metric = self._get_metric(metric_name)
+            metric = self.current_project.metric(metric_name)
             if not metric:
                 self._error("Invalid metric: " + metric_name)
                 return
 
             try:
-                value = metric.units.parse(value_str)
+                value = metric.metric_type.parse(value_str)
             except ParsingError as e:
                 self._error(str(e))
                 return
@@ -405,20 +411,12 @@ class MaxifyCmd(cmd.Cmd):
             metrics.append((metric, value))
 
         task = self.current_project.task(task_name)
-        task.update_data_points(*metrics)
+        for metric, value in metrics:
+            task.record(metric, value)
 
         self.projects.save(self.current_project)
 
         return True
-
-    def _get_metric(self, metric_name):
-        # First, try to use the string as is:
-        metric = self.current_project.metric(metric_name)
-        if metric:
-            return metric
-
-        metric_name = metric_name.replace("_", " ").title()
-        return self.current_project.metric(metric_name)
 
     def _print_task(self, task):
         output = ["Created: " + str(task.created)]

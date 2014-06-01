@@ -1,7 +1,8 @@
 """Module defining constructs for projects and tasks
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 import uuid
 
 from sqlalchemy import (
@@ -102,15 +103,35 @@ class Project(Base):
         return self
 
     def metric(self, name):
-        """Returns the metric with the specified name.
+        """Returns the metric with the specified name.  Additionally, this
+        method will attempt to find a metric by name using some different
+        naming convention patterns in addition to exact name.
 
-        :param name: The name of the metric
+        Examples (for metric "Compile Time"):
+
+            >>> project.metric("Compile Time")
+            >>> project.metric("compile time")
+            >>> project.metric("compile_time")
+
+        :param name: The name of the metric.  The method will attempt
+            to find a metric with a name that matches either the exact name,
+            the name in a case-insensitive manner, or the name in a
+            case-insensitive manner with spaces replaced by underscores.
 
         :return: The :class:`maxify.metrics.Metric` with the specified name
             in this project, or ``None`` if it does not exist.
 
         """
-        return self._metrics_map.get(name)
+        metric = self._metrics_map.get(name)
+        if metric:
+            return metric
+
+        name_lower = name.lower().replace("_", " ")
+        for metric_name in self._metrics_map:
+            if name_lower == metric_name.lower():
+                return self._metrics_map[metric_name]
+
+        return None
 
     def task(self, name):
         """Returns the task in the current project with the specified name.  If
@@ -179,7 +200,6 @@ class Task(Base):
     :param project: `str` or :class:`maxify.config.Project` object representing
         the project that this task belongs to.
     :param name: `str` containing the name of the task.
-    :param desc: Optional `str` containing description of the task.
 
     """
     __tablename__ = "tasks"
@@ -230,3 +250,37 @@ class Task(Base):
             existing[0].value = value
         else:
             self.numeric_values.append(Number(metric, self, value))
+
+    def value(self, metric):
+        """Returns the total value for the metric in the current task.
+
+        :param metric: The :class:`maxify.metrics.Metric` to get a total value
+            for.
+
+        :return: The total value of the specified metric.
+
+        """
+        data_points = self.histogram(metric)
+        if metric.metric_type is Duration:
+            start = timedelta()
+        else:
+            start = Decimal(0)
+
+        return sum([dp.value for dp in data_points], start)
+
+    def histogram(self, metric):
+        """Returns a histogram of recorded values for the specified metric as
+        a list of :class:`maxify.metrics.MetricData` objects.
+
+        :param metric: The :class:`maxify.metrics.Metric` to get histogram
+            values for.
+
+        :return: :class:`list` of values for the specified metric.
+
+        """
+        if metric.metric_type is Duration:
+            collection = self.duration_values
+        else:
+            collection = self.numeric_values
+
+        return filter(lambda d: d.metric_id == metric.id, collection)

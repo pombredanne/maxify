@@ -3,17 +3,16 @@
 
 from datetime import timedelta
 from decimal import Decimal
-import uuid
 
-from sqlalchemy import Column
 import pytest
 
-from maxify.data import open_user_data, Base, GUID
+from maxify.data import open_user_data
 from maxify.projects import Project, Task
 from maxify.metrics import (
     Metric,
     Duration,
-    Number
+    Number,
+    ParsingError
 )
 
 @pytest.fixture
@@ -152,3 +151,71 @@ def test_metric_delete(metrics_session,
     metrics_session.commit()
 
     assert metrics_session.query(Number).count() == 0
+
+
+def test_parse_number():
+    value = Number.parse("500")
+    assert value == Decimal(500)
+
+    value = Number.parse("500.5")
+    assert value == Decimal("500.5")
+
+    with pytest.raises(ParsingError):
+        Number.parse("5a")
+
+
+def test_duration_timefmt():
+    value = Duration.parse("10:05:01")
+    assert value == timedelta(hours=10, minutes=5, seconds=1)
+
+    value = Duration.parse("10:05")
+    assert value == timedelta(hours=10, minutes=5)
+
+
+def test_duration_hours():
+    value = Duration.parse("4 hours")
+    assert value == timedelta(hours=4)
+
+    value = Duration.parse("4.5 hours")
+    assert value == timedelta(hours=4, minutes=30)
+
+
+def test_duration_minutes():
+    value = Duration.parse("4 minutes")
+    assert value == timedelta(minutes=4)
+
+    value = Duration.parse("4.5 mins")
+    assert value == timedelta(minutes=4, seconds=30)
+
+
+def test_duration_seconds():
+    value = Duration.parse("4.5 seconds")
+    assert value == timedelta(seconds=4, milliseconds=500)
+
+    value = Duration.parse("525s")
+    assert value == timedelta(seconds=525)
+
+
+def test_duration_days():
+    value = Duration.parse("2 days")
+    assert value == timedelta(days=2)
+
+
+def test_duration_multiple():
+    value = Duration.parse("2 hrs, 5 mins")
+    assert value == timedelta(hours=2, minutes=5)
+
+
+def test_to_str():
+    assert Number.to_str(1) == "1"
+    assert Number.to_str(1000) == "1,000"
+    assert Number.to_str(10000) == "10,000"
+    assert Number.to_str(1000000) == "1,000,000"
+
+    assert Number.to_str(1000.0) == "1,000"
+    assert Number.to_str(1500.56) == "1,500.56"
+
+    assert Duration.to_str(timedelta(days=1)) == "1 day, 0:00:00"
+    assert Duration.to_str(timedelta(days=1, minutes=1, seconds=40)) == \
+        "1 day, 0:01:40"
+    assert Duration.to_str(timedelta(minutes=5, seconds=5)) == "0:05:05"

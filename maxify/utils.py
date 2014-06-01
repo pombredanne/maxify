@@ -2,6 +2,7 @@
 
 """
 
+import argparse
 from functools import partial
 import re
 
@@ -43,3 +44,32 @@ def _alphanum_key(s, prop_getter=None):
     if prop_getter is not None:
         s = prop_getter(s)
     return [_convert_if_numeric(c) for c in _number_re.split(s)]
+
+
+class ArgumentParser(argparse.ArgumentParser):
+    """Extension of the built-in ``ArgumentParser`` that allows errors to not
+    result in program termination.
+
+    :param stdout: File-like object to use for printing output to.
+    :param kwargs: Normal keyword arguments accepted by the
+        :class:`argparse.ArgumentParser` init method.
+
+    """
+    def __init__(self, stdout, **kwargs):
+        super().__init__(**kwargs)
+        self.stdout = stdout
+
+    def parse_args(self, args=None, namespace=None):
+        try:
+            args, argv = self.parse_known_args(args, namespace=namespace)
+        except:
+            return None
+
+        if argv:
+            self.error("unrecognized arguments: " + " ".join(argv))
+            return None
+
+        return args
+
+    def error(self, message):
+        self.print_usage(file=self.stdout)
