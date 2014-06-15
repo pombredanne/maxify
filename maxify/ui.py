@@ -434,6 +434,13 @@ class MaxifyCmd(cmd.Cmd):
         self._print("\n".join(output) + "\n")
 
     ########################################
+    # Command - stopwatch
+    ########################################
+
+    def do_stopwatch(self, line):
+        self._print("Not implemented")
+
+    ########################################
     # Utility methods
     ########################################
 
