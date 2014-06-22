@@ -3,8 +3,13 @@
 """
 
 import argparse
+from contextlib import contextmanager
 from functools import partial
 import re
+import os
+import sys
+import tty
+import termios
 
 _number_re = re.compile("([0-9]+)")
 
@@ -44,6 +49,25 @@ def _alphanum_key(s, prop_getter=None):
     if prop_getter is not None:
         s = prop_getter(s)
     return [_convert_if_numeric(c) for c in _number_re.split(s)]
+
+
+@contextmanager
+def cbreak():
+    """Context manager that can be used to temporarily put terminal into
+    cbreak mode, meaning characters can be read as they are input without a
+    need for a newline character to be input by the user (unbuffered I/O
+    essentially).
+    """
+    if not os.isatty(sys.stdin.fileno()):
+        yield
+        return
+
+    old_attrs = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin)
+    try:
+        yield
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
 
 
 class ArgumentParser(argparse.ArgumentParser):

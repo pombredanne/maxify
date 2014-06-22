@@ -7,7 +7,7 @@ import fnmatch
 from io import StringIO
 import shlex
 
-from maxify.metrics import ParsingError
+from maxify.metrics import ParsingError, Duration
 from termcolor import colored
 
 from maxify.config import (
@@ -16,8 +16,9 @@ from maxify.config import (
     ProjectConflictError,
     ConfigError
 )
-from maxify.repo import Projects
-from maxify.utils import ArgumentParser
+from maxify.repo import Projects, Tasks
+from maxify.stopwatch import StopWatch
+from maxify.utils import ArgumentParser, cbreak
 
 
 help_texts = {
@@ -96,6 +97,13 @@ class MaxifyCmd(cmd.Cmd):
 
     """
 
+    _stopwatch_status_colors = {
+        StopWatch.STATUS_RUNNING: "green",
+        StopWatch.STATUS_PAUSED: "yellow",
+        StopWatch.STATUS_RESET: "magenta",
+        StopWatch.STATUS_STOPPED: "white"
+    }
+
     def __init__(self, stdin=None, stdout=None, use_color=True):
         cmd.Cmd.__init__(self, stdin=stdin, stdout=stdout)
         self.intro = "Maxify programmer time tracker client"
@@ -137,7 +145,11 @@ class MaxifyCmd(cmd.Cmd):
             stdin.write(" ".join(args.command) + "\nexit\n")
             stdin.seek(0)
 
-        cmd.Cmd.cmdloop(self)
+        try:
+            cmd.Cmd.cmdloop(self)
+        except KeyboardInterrupt:
+            self._print("\nExiting\n")
+            return
 
     def _set_current_project(self, project_name):
         self.current_project = self.projects.get(project_name)
@@ -424,9 +436,11 @@ class MaxifyCmd(cmd.Cmd):
         return True
 
     def _print_task(self, task):
-        output = ["Created: " + str(task.created)]
-        output.append("Last Updated: " + str(task.last_updated))
-        output.append("\n")
+        output = [
+            "Created: " + str(task.created),
+            "Last Updated: " + str(task.last_updated),
+            '\n'
+        ]
         for data_point in task.data_points:
             output.append(" {0} -> {1}".format(data_point.metric,
                                                data_point.value))
@@ -438,7 +452,130 @@ class MaxifyCmd(cmd.Cmd):
     ########################################
 
     def do_stopwatch(self, line):
-        self._print("Not implemented")
+        """Creates a new stopwatch for recording time for a particular task.
+        """
+        parser = ArgumentParser(stdout=self.stdout,
+                                prog="stopwatch",
+                                add_help=False)
+        parser.add_argument("task", metavar="TASK")
+        parser.add_argument("metric", metavar="METRIC", nargs="?")
+
+        args = parser.parse_args(line.split())
+        if not args.task:
+            self._print()
+            self._error("Invalid arguments")
+            return
+
+        # Get task with specified name and optional metric
+        task = self.current_project.task(args.task, create=False)
+        if not task:
+            self._error("Task {} does not exist.".format(args.task))
+            return
+
+        if args.metric:
+            metric = self.current_project.metric(args.metric)
+            if not metric:
+                self._error("Metric {} does not exist.".format(args.metric))
+                return
+        else:
+            metric = None
+
+        # Create a stop watch and UI
+        self._print("\n  (R)eset | (S)tart | (P)ause | S(t)op\n")
+
+        self.stdout.write("  Stopped\t--:--:--\r")
+        self.stdout.flush()
+
+        stopwatch_active = True
+        stopwatch = StopWatch()
+        with cbreak():
+            while stopwatch_active:
+                user_input_int = ord(self.stdin.read(1))
+                if 0 <= user_input_int <= 256:
+                    user_input = chr(user_input_int).upper()
+                    if user_input == "S":
+                        stopwatch.start(tick_callback=self._update_printout)
+                    elif user_input == "P":
+                        stopwatch.pause()
+                    elif user_input == 'R':
+                        stopwatch.reset()
+                    elif user_input == "T":
+                        stopwatch.stop()
+                        stopwatch_active = False
+
+        # At this point, stopwatch has been stopped, so now attempt to assign
+        # its total duration to the task.
+        if metric:
+            self._assign_time(task, metric, stopwatch.total)
+        else:
+            self._assign_time_interactive(task, stopwatch.total)
+
+        self.projects.save(self.current_project)
+
+    def _assign_time(self, task, metric, total):
+        task.record(metric, total)
+        self._print('  \n\n  Added {} to "{}"\n'.format(total, metric.name))
+
+    def _assign_time_interactive(self, task, total):
+        self._title("\n\nAssign Time")
+        self._print("The stop watch recorded {}. Assign that time to the "
+                    "metrics in this task:\n\n".format(total))
+
+        remainder = total
+        duration_metrics = filter(lambda m: m.metric_type is Duration,
+                                  self.current_project.metrics)
+        for metric in sorted(duration_metrics, key=lambda m: m.name):
+            parsed_val = None
+            while parsed_val is None:
+                value = input("  {} ({} remaining): ".format(metric.name,
+                                                             remainder))
+                if value.lower() == "rest":
+                    parsed_val = remainder
+                else:
+                    try:
+                        parsed_val = Duration.parse(value)
+                    except ParsingError as e:
+                        self._error(str(e))
+                    except:
+                        self._error("Invalid duration")
+
+                if parsed_val > remainder:
+                    self._error("{} is greater than remaining time from "
+                                "stopwatch ({})".format(parsed_val, remainder))
+                    parsed_val = None
+
+            task.record(metric, parsed_val)
+            remainder -= parsed_val
+
+            if remainder.total_seconds() <= 0:
+                break
+
+        self._print()
+
+    def _update_printout(self, total, status):
+        """Update printout of current stopwatch value to screen.
+
+        :param total: The total as a :class:`datetime.timedelta`.
+        :param status: The current stopwatch status as a string.
+
+        """
+        self.stdout.write(" " * 80 + "\r")
+        self.stdout.write(colored("  {:7}\t{}\r".format(status, total),
+                                  self._stopwatch_status_colors[status]))
+        self.stdout.flush()
+
+    def complete_stopwatch(self, text, line, beginx, endidx):
+        """Provides support for auto-complete of task name in stopwatch command.
+        """
+        tasks = Tasks(self.current_project)
+        start_index = len("stopwatch ")
+        if beginx == start_index:
+            return [t.name for t in tasks.starts_with(text)]
+
+        beginning = line[start_index:beginx]
+        partial_name = beginning + text
+        matches = tasks.starts_with(partial_name)
+        return [t.name.replace(beginning, "") for t in matches]
 
     ########################################
     # Utility methods
@@ -454,11 +591,11 @@ class MaxifyCmd(cmd.Cmd):
     def _info(self, msg, extra_newline=True):
         self._print(msg, 'cyan', extra_newline)
 
-    def _warning(self, msg, extra_newline=True):
-        self._print("Warning: " + msg, "yellow", extra_newline)
+    def _warning(self, msg, extra_newline=True, indent=0):
+        self._print(" " * indent + "Warning: " + msg, "yellow", extra_newline)
 
-    def _error(self, msg, extra_newline=True):
-        self._print("Error: " + msg, "red", extra_newline)
+    def _error(self, msg, extra_newline=True, indent=0):
+        self._print(" " * indent + "Error: " + msg, "red", extra_newline)
 
     def _print(self, msg=None, color=None, extra_newline=False):
         if msg and color and self.use_color:

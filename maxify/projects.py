@@ -133,19 +133,21 @@ class Project(Base):
 
         return None
 
-    def task(self, name):
-        """Returns the task in the current project with the specified name.  If
-        the task does not exist, it will be created.
+    def task(self, name, create=True):
+        """Returns the task in the current project with the specified name.
 
         :param name: The unique name of the task.
+        :param create: If ``True``, if a task with the specified name is
+            not found, a new one will be created and returned.
 
         :return: The :class:`maxify.projects.Task` with the specified name
-            in this project.  If the task does not exist, it will be
-            created.
+            in this project.  If the task does not exist and ``create``
+            is True, it will be created.  Otherwise, ``None`` will be
+            returned.
 
         """
         task = self._task_map.get(name)
-        if not task:
+        if not task and create:
             task = Task(self, name)
             self.tasks.append(task)
             self._task_map[name] = task

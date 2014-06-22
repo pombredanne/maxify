@@ -16,10 +16,11 @@ Example: Getting a project
 from contextlib import contextmanager
 
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import load_only
 from sqlalchemy.orm.exc import NoResultFound
 
 from maxify.data import open_user_data
-from maxify.projects import Project
+from maxify.projects import Project, Task
 from maxify.log import Logger
 
 
@@ -44,6 +45,37 @@ class Repository(object):
 
         """
         cls.db_session = open_user_data(path, use_static_pool=test_mode)
+
+
+class Tasks(Repository):
+    """Repository used to access and query :class:`maxify.projects.Task` objects
+    for a particular project.
+
+    :param project: The parent :class:`maxify.projects.Project` that the tasks
+        belong to.
+
+    """
+
+    log = Logger("tasks")
+
+    def __init__(self, project):
+        self.project = project
+
+    def starts_with(self, prefix):
+        """Returns all tasks with names starting with the specified text.
+
+        :param prefix: The task name prefix.
+
+        :return: ``list`` of tasks with names starting with ``prefix`` belonging
+            to the parent project.
+
+        """
+        self.log.debug("Matching: {}", prefix)
+        return self.db_session.query(Task)\
+            .filter(Task.project_id == self.project.id,
+                    Task.name.like(prefix + "%"))\
+            .options(load_only("id", "name"))\
+            .all()
 
 
 class Projects(Repository):
